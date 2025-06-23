@@ -1,73 +1,87 @@
-🚀 Servling
+# 🚀 Servling
 
-    The container deployment platform that just works — Deploy, manage, and monitor your applications with zero complexity.
+> **The container deployment platform that just works** — Deploy, manage, and monitor your applications with zero complexity.
 
 <div align="center">
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
+[![Node.js](https://img.shields.io/badge/node.js-%3E%3D18-339933?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+
 </div>
-✨ Why Choose Servling?
 
-Tired of complex deployment pipelines? Servling transforms container deployment from a chore into a breeze. Whether you're a solo developer or managing enterprise applications, Servling adapts to your workflow.
-🎯 Perfect For
+---
 
-    Self-hosters who want full control over their deployment infrastructure
-    Developers deploying personal projects on their own servers
-    Small teams managing applications on private infrastructure
-    Anyone who values simplicity over complex orchestration platforms
+## ✨ Why Choose Servling?
 
-🌟 Key Features
-🖱️ One-Click Deployments
+**Tired of complex deployment pipelines?** Servling transforms container deployment from a chore into a breeze. Whether you're a solo developer or managing enterprise applications, Servling adapts to your workflow.
 
+### 🎯 Perfect For
+- **Self-hosters** who want full control over their deployment infrastructure
+- **Developers** deploying personal projects on their own servers
+- **Small teams** managing applications on private infrastructure
+- **Anyone** who values simplicity over complex orchestration platforms
+
+---
+
+## 🌟 Key Features
+
+### 🖱️ **One-Click Deployments**
 Deploy complex multi-service applications with a single click. No YAML wrestling required.
-📊 Real-Time Monitoring
 
+### 📊 **Real-Time Monitoring**
 Watch your applications come alive with live status updates, logs, and health monitoring.
-🎨 Modern Web Interface
 
+### 🎨 **Modern Web Interface**
 Beautiful, responsive dashboard built with Nuxt.js — manage everything from anywhere.
-🔒 Enterprise-Ready Security
 
+### 🔒 **Enterprise-Ready Security**
 Built-in authentication, authorization, and secure container isolation.
-📋 Smart Templates
 
+### 📋 **Smart Templates**
 Pre-configured application templates get you from zero to deployed in minutes.
-⚡ Self-Hosting Made Simple
 
+### ⚡ **Self-Hosting Made Simple**
 Deploy on your own infrastructure without vendor lock-in or monthly fees.
-🏗️ Architecture That Scales
 
+---
+
+## 🏗️ Architecture That Scales
+
+```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Web Interface │───▶│  Backend Server  │───▶│ Docker Engine   │
 │    (Nuxt.js)    │    │     (Go)         │    │   (Containers)  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-│
-▼
-┌─────────────────┐
-│   PostgreSQL    │
-│   (Database)    │
-└─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   PostgreSQL    │
+                       │   (Database)    │
+                       └─────────────────┘
+```
 
-Components:
+**Components:**
+- 🎯 **Backend Server**: Robust Go API handling orchestration and management
+- 🌐 **Web Interface**: Intuitive Nuxt.js dashboard for all your deployment needs
+- 💾 **PostgreSQL**: Reliable data persistence for configurations and state
 
-    🎯 Backend Server: Robust Go API handling orchestration and management
-    🌐 Web Interface: Intuitive Nuxt.js dashboard for all your deployment needs
-    💾 PostgreSQL: Reliable data persistence for configurations and state
+---
 
-🚀 Quick Start
-Prerequisites
+## 🚀 Quick Start
 
-bash
-
+### Prerequisites
+```bash
 # Essential tools
 Docker & Docker Compose
 Go 1.21+
 Node.js 18+
 pnpm
+```
 
-⚡ Get Running in 60 Seconds
+### ⚡ Get Running in 60 Seconds
 
-bash
-
+```bash
 # 1. Clone and enter
 git clone https://github.com/servling/servling.git
 cd servling
@@ -83,10 +97,15 @@ go run main.go
 
 # 5. Start web interface (new terminal)
 cd web && pnpm dev
+```
 
-🎉 That's it! Visit http://localhost:3000 and start deploying.
-📁 Project Structure
+🎉 **That's it!** Visit [http://localhost:3000](http://localhost:3000) and start deploying.
 
+---
+
+## 📁 Project Structure
+
+```
 servling/
 ├── 🖥️  apps/
 │   ├── server/          # Go backend API
@@ -94,48 +113,62 @@ servling/
 ├── 🗄️  ent/             # Database models & schema
 ├── 📦  packages/        # Shared utilities
 └── 📋  schema/          # API specifications
+```
 
-💡 What Makes Servling Special
-🔄 Real-Time Everything
+---
 
+## 💡 What Makes Servling Special
+
+### 🔄 **Real-Time Everything**
 Server-Sent Events keep your dashboard synchronized with container state changes instantly.
-🎛️ Flexible Configuration
 
+### 🎛️ **Flexible Configuration**
 Environment variables, port mappings, labels, and volumes — all configurable through an intuitive UI.
-🏢 Multi-Tenant Ready
 
+### 🏢 **Multi-Tenant Ready**
 Secure user authentication ensures teams can collaborate safely on shared infrastructure.
-🔧 Developer Experience First
 
+### 🔧 **Developer Experience First**
 Built by developers, for developers. Every feature designed to reduce friction and increase productivity.
-🛠️ Configuration
+
+---
+
+## 🛠️ Configuration
 
 Servling can be configured using environment variables. Check the source code for all available configuration options.
-🤝 Join the Community
+
+---
+
+## 🤝 Join the Community
 
 We're building something amazing together! Here's how you can help:
 
-    🌟 Star this repo if Servling helps with your self-hosting needs
-    🐛 Report bugs to help us improve
-    💡 Suggest features for future releases
-    🔧 Submit PRs — all contributions welcome!
+- 🌟 **Star this repo** if Servling helps with your self-hosting needs
+- 🐛 **Report bugs** to help us improve
+- 💡 **Suggest features** for future releases
+- 🔧 **Submit PRs** — all contributions welcome!
 
-Contributing
+### Contributing
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-    Fork the repository
-    Create your feature branch (git checkout -b feature/amazing-feature)
-    Commit your changes (git commit -m 'Add amazing feature')
-    Push to the branch (git push origin feature/amazing-feature)
-    Open a Pull Request
+---
 
-📄 License
+## 📄 License
 
-Released under the MIT License — use it however you want!
+Released under the [MIT License](LICENSE) — use it however you want!
+
+---
+
 <div align="center">
 
-Ready to simplify your deployments?
+**Ready to simplify your deployments?**
 
-⭐ Star on GitHub | 📚 View Source | 🐛 Report Issues
+[⭐ Star on GitHub](https://github.com/servling/servling) | [📚 View Source](https://github.com/servling/servling) | [🐛 Report Issues](https://github.com/servling/servling/issues)
 
-Made with ❤️ for developers who love self-hosting
+*Made with ❤️ for developers who love self-hosting*
+
 </div>
