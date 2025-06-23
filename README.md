@@ -2,8 +2,8 @@
 
 > **The container deployment platform that just works** — Deploy, manage, and monitor your applications with zero complexity.
 
-[!WARNING]
-This project is currently under active development and is not yet ready for production use. Many features are incomplete or may not work as expected. Check back soon for updates!
+> [!WARNING]
+> **This project is currently under active development and is not yet ready for production use.** Many features are incomplete or may not work as expected. Check back soon for updates!
 
 <div align="center">
 
