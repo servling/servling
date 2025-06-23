@@ -1,0 +1,15 @@
+{
+  "name": "servling",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:rolldown-vite@latest"
+    }
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4"
+  }
+}

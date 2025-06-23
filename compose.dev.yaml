@@ -1,0 +1,14 @@
+services:
+  database:
+    image: postgres:17.5-alpine3.22
+    ports:
+      - "5432:5432/tcp"
+    environment:
+      POSTGRES_PASSWORD: servling
+      POSTGRES_DB: servling
+      POSTGRES_USER: servling
+  redis:
+    image: redis:8.0.2-alpine3.21
+    ports:
+      - "6379:6379/tcp"
+
