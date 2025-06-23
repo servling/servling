@@ -5,8 +5,8 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
-[![Node.js](https://img.shields.io/badge/node.js-%3E%3D18-339933?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.24-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
+[![Nuxt](https://img.shields.io/badge/nuxt-v4--alpha-339933?style=for-the-badge&logo=nuxt)](https://nuxt.com/)
 
 </div>
 
