@@ -1,7 +1,7 @@
 package http
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strings"
@@ -10,6 +10,9 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/cors"
 	"github.com/go-fuego/fuego"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	slogzerolog "github.com/samber/slog-zerolog/v2"
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/deploy"
@@ -24,6 +27,25 @@ type HttpServer struct {
 	client        *ent.Client
 	pubSub        *gochannel.GoChannel
 	deployManager *deploy.DeployManager
+}
+
+func convertLogLevel(level zerolog.Level) slog.Level {
+	var slogLevel slog.Level
+	switch level {
+	case zerolog.TraceLevel:
+		slogLevel = slog.LevelDebug
+	case zerolog.DebugLevel:
+		slogLevel = slog.LevelDebug
+	case zerolog.InfoLevel:
+		slogLevel = slog.LevelInfo
+	case zerolog.WarnLevel:
+		slogLevel = slog.LevelWarn
+	case zerolog.ErrorLevel:
+		slogLevel = slog.LevelError
+	default:
+		slogLevel = slog.LevelInfo // Default to Info
+	}
+	return slogLevel
 }
 
 func NewHttpServer(config *config.Config, client *ent.Client, pubSub *gochannel.GoChannel, deployManager *deploy.DeployManager) *HttpServer {
@@ -74,6 +96,10 @@ func (s *HttpServer) Run() error {
 			AllowCredentials: false,
 			MaxAge:           300,
 		})),
+		fuego.WithLogHandler(slogzerolog.Option{
+			Level:  convertLogLevel(log.Logger.GetLevel()),
+			Logger: &log.Logger,
+		}.NewZerologHandler()),
 	)
 
 	authService := auth.NewAuthService(s.config, s.client)
@@ -84,7 +110,7 @@ func (s *HttpServer) Run() error {
 	go func() {
 		err := applicationService.SubscribeToServiceEvents()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msg("Failed to subscribe to service events")
 		}
 	}()
 	applicationController := controller.NewApplicationController(applicationService)

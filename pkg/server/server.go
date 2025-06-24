@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
-	"log"
+	"os"
+	"time"
 
 	"entgo.io/ent/dialect"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/docker/docker/client"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/deploy"
@@ -17,20 +20,34 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func initLogger() {
+	env := os.Getenv("APP_ENV")
+
+	if env == "production" {
+		log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().With().Str("scope", "generic").Logger()
+		log.Info().Msg("Running in Production Mode")
+	} else {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}).With().Str("scope", "generic").Logger()
+		log.Info().Msg("Running in Development Mode")
+	}
+}
+
 func Run() {
+	initLogger()
 	servlingConfig, err := config.LoadConfig()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Error loading config")
 		return
 	}
 	entClient, err := ent.Open(dialect.SQLite, "file:ent.db?_fk=1")
 	if err != nil {
-		log.Fatalf("failed opening connection to sqlite: %v", err)
+		log.Fatal().Err(err).Msg("failed opening connection to sqlite")
 		return
 	}
 	defer entClient.Close()
 	if err := entClient.Schema.Create(context.Background()); err != nil {
-		log.Fatalf("failed creating schema resources: %v", err)
+		log.Fatal().Err(err).Msg("failed creating schema resources")
 		return
 	}
 
@@ -41,7 +58,7 @@ func Run() {
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		log.Fatalf("failed creating docker entClient: %v", err)
+		log.Fatal().Err(err).Msg("failed creating docker entClient")
 		return
 	}
 
@@ -50,6 +67,6 @@ func Run() {
 	httpServer := http.NewHttpServer(servlingConfig, entClient, pubSub, deployManager)
 	err = httpServer.Run()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("failed starting http server")
 	}
 }

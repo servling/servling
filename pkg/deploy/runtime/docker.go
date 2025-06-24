@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"dario.lol/gotils/pkg/maps"
@@ -14,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/pkg/constants"
 	"github.com/servling/servling/pkg/types"
 	"github.com/servling/servling/pkg/util"
@@ -112,7 +112,7 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 		Status: types.ServiceStatusStarting,
 	})
 	if err != nil {
-		log.Printf("[SERVICE] Individual service '%s' failed to start Error: %v", service.Name, err)
+		log.Error().Str("scope", "docker").Str("serviceId", service.ID).Msg("Individual service failed to start.")
 	}
 	out, err := d.client.ImagePull(ctx, service.Image, image.PullOptions{})
 	if err != nil {
@@ -174,7 +174,7 @@ func (d DockerRuntime) StopService(ctx context.Context, service *types.Service) 
 		Status: types.ServiceStatusStopping,
 	})
 	if err != nil {
-		log.Printf("[SERVICE] Individual service '%s' failed to stop Error: %v", service.Name, err)
+		log.Error().Str("serviceId", service.ID).Err(err).Msg("Individual service failed to stop.")
 	}
 	containerSummary, err := d.GetContainerByService(ctx, service)
 	if err != nil {

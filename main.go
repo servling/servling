@@ -1,9 +1,7 @@
 package main
 
-import (
-	"github.com/servling/servling/pkg/server"
-)
+import "github.com/servling/servling/cli"
 
 func main() {
-	server.Run()
+	cli.Execute()
 }

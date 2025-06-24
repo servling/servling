@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -11,6 +10,8 @@ import (
 	"dario.lol/gotils/pkg/pointer"
 	"dario.lol/gotils/pkg/slice"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/constants"
@@ -53,14 +54,14 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("--> Subscribed to topic: %s", constants.TopicServiceStatusChanged)
+	log.Debug().Str("topic", constants.TopicServiceStatusChanged).Msg("Subscribed to topic.")
 
 	for msg := range channel {
-		log.Printf("Received message: UUID=%s", msg.UUID)
+		log.Debug().Str("UUID", msg.UUID).Msg("Received message.")
 
 		receivedMsg, err := encoding.UnmarshalJSON[types.ServiceStatusChangedMessage](msg.Payload)
 		if err != nil {
-			log.Printf("Error unmarshalling message: %v", err)
+			log.Debug().Err(err).Msg("Error unmarshalling message.")
 			msg.Nack()
 			continue
 		}
@@ -74,12 +75,12 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 		}
 
 		if err := s.ChangeServiceStatus(msg.Context(), update); err != nil {
-			log.Printf("Failed to process status change for service %s: %v", receivedMsg.ID, err)
+			log.Debug().Str("serviceId", receivedMsg.ID).Err(err).Msg("Failed to process status change for service.")
 			msg.Nack()
 			continue
 		}
+		log.Debug().Str("serviceId", receivedMsg.ID).Str("status", string(receivedMsg.Status)).Msg("Successfully processed status change for service.")
 
-		log.Printf("Successfully processed status change for service %s to %s", receivedMsg.ID, receivedMsg.Status)
 		msg.Ack()
 	}
 
@@ -150,7 +151,7 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 		Status: applicationUpdate.Status,
 		Error:  applicationUpdate.Error,
 	}); pubErr != nil {
-		log.Printf("CRITICAL: Failed to publish started status for service %s: %v", service.ID, pubErr)
+		log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish started status for service.")
 	}
 
 	return s.ChangeApplicationStatus(ctx, types.ApplicationStatusInfoUpdate{
@@ -182,7 +183,6 @@ func (s *ApplicationService) Delete(ctx context.Context, application *types.Appl
 
 func (s *ApplicationService) Create(ctx context.Context, input types.CreateApplicationInput) (*types.Application, error) {
 	databaseApplication, err := s.repository.Create(ctx, input)
-	log.Printf("Application %v created", databaseApplication)
 	if err != nil {
 		return nil, err
 	}
@@ -195,49 +195,49 @@ func (s *ApplicationService) Create(ctx context.Context, input types.CreateAppli
 }
 
 func (s *ApplicationService) StartService(ctx context.Context, service *types.Service) {
-	log.Printf("[SERVICE] Starting individual service '%s'...", service.Name)
+	log.Debug().Str("serviceId", service.ID).Msg("Starting individual service...")
 	if err := s.deployManager.StartService(ctx, service); err != nil {
-		log.Printf("[SERVICE] Individual service '%s' failed to start. Error: %v", service.Name, err)
+		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to start.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     service.ID,
 			Status: types.ServiceStatusError,
 			Error:  pointer.Of(err.Error()),
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish error status for service %s: %v", service.ID, pubErr)
+			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish error status for service")
 		}
 	} else {
-		log.Printf("[SERVICE] Individual service '%s' started successfully.", service.Name)
+		log.Debug().Str("serviceId", service.ID).Msg("Individual service started successfully.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     service.ID,
 			Status: types.ServiceStatusRunning,
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish started status for service %s: %v", service.ID, pubErr)
+			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish started status for service.")
 		}
 	}
 }
 
 func (s *ApplicationService) StopService(ctx context.Context, service *types.Service) {
-	log.Printf("[SERVICE] Stopping individual service '%s'...", service.Name)
+	log.Debug().Str("serviceId", service.ID).Msg("Stopping individual service...")
 	if err := s.deployManager.StopService(ctx, service); err != nil {
-		log.Printf("[SERVICE] Individual service '%s' failed to stop Error: %v", service.Name, err)
+		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to stop.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     service.ID,
 			Status: types.ServiceStatusError,
 			Error:  pointer.Of(err.Error()),
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish error status for service %s: %v", service.ID, pubErr)
+			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish stopped status for service.")
 		}
 	} else {
-		log.Printf("[SERVICE] Individual service '%s' started successfully.", service.Name)
+		log.Debug().Str("serviceId", service.ID).Msg("Individual service stopped successfully.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     service.ID,
 			Status: types.ServiceStatusStopped,
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish started status for service %s: %v", service.ID, pubErr)
+			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish stopped status for service.")
 		}
 	}
 }
@@ -245,7 +245,7 @@ func (s *ApplicationService) StopService(ctx context.Context, service *types.Ser
 func (s *ApplicationService) Start(ctx context.Context, application *types.Application) {
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, len(application.Services))
-	log.Printf("[SERVICE] Starting %d services for application %s...", len(application.Services), application.Name)
+	log.Debug().Str("applicationId", application.ID).Int("serviceCount", len(application.Services)).Msg("Starting services for application...")
 
 	for _, service := range application.Services {
 		wg.Add(1)
@@ -267,23 +267,23 @@ func (s *ApplicationService) Start(ctx context.Context, application *types.Appli
 
 	if len(allErrors) > 0 {
 		consolidatedError := strings.Join(allErrors, "; ")
-		log.Printf("[SERVICE] Application '%s' failed to start. Errors: %s", application.Name, consolidatedError)
+		log.Error().Str("applicationId", application.ID).Err(errors.New(consolidatedError)).Msg("Application failed to start.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     application.ID,
 			Status: types.ServiceStatusError,
 			Error:  pointer.Of(consolidatedError),
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish error status for app %s: %v", application.ID, pubErr)
+			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
 		}
 	} else {
-		log.Printf("[SERVICE] All services for application '%s' started successfully.", application.Name)
+		log.Debug().Str("applicationId", application.ID).Msg("All services for application started successfully.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     application.ID,
 			Status: types.ServiceStatusRunning,
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish started status for app %s: %v", application.ID, pubErr)
+			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
 		}
 	}
 }
@@ -291,7 +291,7 @@ func (s *ApplicationService) Start(ctx context.Context, application *types.Appli
 func (s *ApplicationService) Stop(ctx context.Context, application *types.Application) {
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, len(application.Services))
-	log.Printf("[SERVICE] Stopping all services for application %s...", application.Name)
+	log.Debug().Str("applicationId", application.ID).Msg("Stopping all services for application...")
 
 	for _, service := range application.Services {
 		wg.Add(1)
@@ -313,23 +313,23 @@ func (s *ApplicationService) Stop(ctx context.Context, application *types.Applic
 
 	if len(allErrors) > 0 {
 		consolidatedError := strings.Join(allErrors, "; ")
-		log.Printf("[SERVICE] Application '%s' failed to stop. Errors: %s", application.Name, consolidatedError)
+		log.Error().Str("applicationId", application.ID).Err(errors.New(consolidatedError)).Msg("Application failed to stop.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     application.ID,
 			Status: types.ServiceStatusError,
 			Error:  pointer.Of(consolidatedError),
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish error status for app %s: %v", application.ID, pubErr)
+			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
 		}
 	} else {
-		log.Printf("[SERVICE] All services for application '%s' stopped successfully.", application.Name)
+		log.Debug().Str("applicationId", application.ID).Msg("All services for application stopped successfully.")
 		msg := &types.ApplicationStatusChangedMessage{
 			ID:     application.ID,
 			Status: types.ServiceStatusStopped,
 		}
 		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Printf("CRITICAL: Failed to publish started status for app %s: %v", application.ID, pubErr)
+			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
 		}
 	}
 }

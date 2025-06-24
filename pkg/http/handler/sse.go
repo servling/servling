@@ -2,18 +2,15 @@ package handler
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/go-fuego/fuego"
+	"github.com/rs/zerolog/log"
 )
 
-// FIX: Define a struct to hold both the message and its original topic.
-// This is necessary because the received message from the channel doesn't
-// inherently know which topic it came from.
 type messageWithTopic struct {
 	msg   *message.Message
 	topic string
@@ -28,14 +25,12 @@ func SSEEventsController[T any](c fuego.Context[any, any], pubSub *gochannel.GoC
 		return nil, fuego.BadRequestError{Detail: "At least one topic must be provided."}
 	}
 
-	log.Printf("SSE: Client %s connected. Subscribing to topics: %v", r.RemoteAddr, topics)
+	log.Debug().Str("scope", "SSE").Str("remoteAddress", r.RemoteAddr).Strs("topics", topics).Msg("Client connected. Subscribing to topics.")
 
-	// FIX: The channel now carries our new struct type.
 	mergedMessages := make(chan messageWithTopic)
 	var wg sync.WaitGroup
 
 	for _, topic := range topics {
-		// Capture the topic variable for the goroutine.
 		currentTopic := topic
 		messages, err := pubSub.Subscribe(r.Context(), currentTopic)
 		if err != nil {
@@ -43,18 +38,16 @@ func SSEEventsController[T any](c fuego.Context[any, any], pubSub *gochannel.GoC
 		}
 
 		wg.Add(1)
-		// FIX: The goroutine now accepts the topic name.
 		go func(topicName string, messages <-chan *message.Message) {
 			defer wg.Done()
 			for msg := range messages {
 				select {
-				// FIX: Send the message *and* its topic down the channel.
 				case mergedMessages <- messageWithTopic{msg: msg, topic: topicName}:
 				case <-r.Context().Done():
 					return
 				}
 			}
-		}(currentTopic, messages) // Pass the captured topic name here.
+		}(currentTopic, messages)
 	}
 
 	go func() {
@@ -77,27 +70,25 @@ func SSEEventsController[T any](c fuego.Context[any, any], pubSub *gochannel.GoC
 	for {
 		select {
 		case <-r.Context().Done():
-			log.Printf("SSE: Client %s disconnected.", r.RemoteAddr)
+			log.Debug().Str("scope", "SSE").Str("remoteAddress", r.RemoteAddr).Msg("Client disconnected.")
 			return nil, nil
-		// FIX: Receive our new struct from the channel.
 		case msgWithTopic, ok := <-mergedMessages:
 			if !ok {
-				log.Printf("SSE: All topic streams ended for client %s.", r.RemoteAddr)
+				log.Debug().Str("scope", "SSE").Str("remoteAddress", r.RemoteAddr).Msg("All topic streams ended for client.")
 				return nil, nil
 			}
 
-			// Extract the original message and the event name.
 			msg := msgWithTopic.msg
-			eventName := msgWithTopic.topic // This is now guaranteed to be correct.
+			eventName := msgWithTopic.topic
 
 			msg.Ack()
 
-			log.Printf("SSE: Sending event '%s' with UUID '%s' to client %s", eventName, msg.UUID, r.RemoteAddr)
+			log.Debug().Str("scope", "SSE").Str("remoteAddress", r.RemoteAddr).Str("UUID", msg.UUID).Str("eventName", eventName).Msg("Sending event to client.")
 
 			sseMessage := fmt.Sprintf("id: %s\nevent: %s\ndata: %s\n\n", msg.UUID, eventName, string(msg.Payload))
 
 			if _, err := fmt.Fprint(w, sseMessage); err != nil {
-				log.Printf("SSE: Error writing to client %s: %v", r.RemoteAddr, err)
+				log.Debug().Str("scope", "SSE").Str("remoteAddress", r.RemoteAddr).Err(err).Msg("Error writing to client.")
 				return nil, nil
 			}
 			flusher.Flush()
