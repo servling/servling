@@ -11,11 +11,10 @@ export default defineNuxtConfig({
     'pinia-plugin-persistedstate/nuxt',
     '@nuxtjs/seo',
     'reka-ui/nuxt',
-    '@bicou/nuxt-urql',
     'nuxt-auth-utils',
+    '@hey-api/nuxt',
   ],
   devtools: { enabled: true },
-
   colorMode: {
     classSuffix: '',
   },
@@ -50,15 +49,35 @@ export default defineNuxtConfig({
     },
   },
 
+  heyApi: {
+    config: {
+      input: {
+        path: '../schema/openapi.json',
+        validate_EXPERIMENTAL: true,
+      },
+      plugins: [
+        '@hey-api/schemas',
+        {
+          name: '@hey-api/sdk',
+          transformer: true,
+          validator: false,
+          auth: true,
+        },
+        {
+          enums: 'javascript',
+          name: '@hey-api/typescript',
+        },
+        '@hey-api/transformers',
+        'zod',
+      ],
+    },
+  },
+
   pinia: {
     storesDirs: ['./app/stores'],
   },
 
   piniaPluginPersistedstate: {
     storage: 'cookies',
-  },
-
-  urql: {
-    endpoint: 'http://localhost:8080/graphql',
   },
 })

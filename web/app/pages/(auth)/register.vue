@@ -2,14 +2,11 @@
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import * as z from 'zod'
-import { RegisterDocument } from '~/gql/mutations/register'
 
 definePageMeta({
   layout: 'auth',
   auth: false,
 })
-
-const { executeMutation: mutateRegister } = useMutation(RegisterDocument)
 
 const validationSchema = toTypedSchema(
   z.object({
@@ -31,26 +28,29 @@ const apiErrors = ref<string[]>([])
 const onSubmit = handleSubmit(async (values) => {
   apiErrors.value = []
   try {
-    const result = await mutateRegister({
-      username: values.name,
-      password: values.password,
+    const result = await register({
+      composable: '$fetch',
+      body: {
+        username: values.name,
+        password: values.password,
+      },
     })
 
-    if (!result.data) {
+    if (!result) {
       apiErrors.value.push('An unknown error occurred')
       return
     }
 
     await updateSession({
-      accessToken: result.data.register.accessToken,
-      accessTokenExpiresAt: result.data.register.accessTokenExpiresAt,
-      refreshToken: result.data.register.refreshToken,
-      refreshTokenExpiresAt: result.data.register.refreshTokenExpiresAt,
+      accessToken: result.accessToken,
+      accessTokenExpiresAt: result.accessTokenExpiresAt,
+      refreshToken: result.refreshToken,
+      refreshTokenExpiresAt: result.refreshTokenExpiresAt,
       user: {
-        id: result.data.register.user.id,
-        name: result.data.register.user.name,
-        createdAt: result.data.register.user.createdAt,
-        updatedAt: result.data.register.user.updatedAt,
+        id: result.user.id,
+        name: result.user.name,
+        createdAt: result.user.createdAt,
+        updatedAt: result.user.updatedAt,
       },
     })
 

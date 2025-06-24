@@ -2,14 +2,11 @@
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import * as z from 'zod'
-import { LoginDocument } from '~/gql/mutations/login'
 
 definePageMeta({
   layout: 'auth',
   auth: false,
 })
-
-const { executeMutation: mutateLogin } = useMutation(LoginDocument)
 
 const validationSchema = toTypedSchema(
   z.object({
@@ -27,26 +24,29 @@ const apiErrors = ref<string[]>([])
 const onSubmit = handleSubmit(async (values) => {
   apiErrors.value = []
   try {
-    const result = await mutateLogin({
-      username: values.name,
-      password: values.password,
+    const result = await login({
+      composable: '$fetch',
+      body: {
+        username: values.name,
+        password: values.password,
+      },
     })
 
-    if (!result.data?.login) {
+    if (!result) {
       apiErrors.value.push('Error fetching data.')
       return
     }
 
     await updateSession({
-      accessToken: result.data.login.accessToken,
-      accessTokenExpiresAt: result.data.login.accessTokenExpiresAt,
-      refreshToken: result.data.login.refreshToken,
-      refreshTokenExpiresAt: result.data.login.refreshTokenExpiresAt,
+      accessToken: result.accessToken,
+      accessTokenExpiresAt: result.accessTokenExpiresAt,
+      refreshToken: result.refreshToken,
+      refreshTokenExpiresAt: result.refreshTokenExpiresAt,
       user: {
-        id: result.data.login.user.id,
-        name: result.data.login.user.name,
-        createdAt: result.data.login.user.createdAt,
-        updatedAt: result.data.login.user.updatedAt,
+        id: result.user.id,
+        name: result.user.name,
+        createdAt: result.user.createdAt,
+        updatedAt: result.user.updatedAt,
       },
     })
 

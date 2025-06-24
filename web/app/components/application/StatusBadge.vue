@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Application } from '~/client'
 import { cva } from 'cva'
 
 const props = defineProps<{

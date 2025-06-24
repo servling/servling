@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import type { Application } from '~/client'
-import { deleteApplication, startApplication, stopApplication } from '~/client'
-
 const props = defineProps<{
   application: Application
 }>()

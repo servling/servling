@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import type { CreateApplicationRequest } from '~/client/types.gen'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
 import * as z from 'zod'
-import { createApplication } from '~/client'
 
 definePageMeta({
   breadcrumb: {
@@ -295,7 +293,7 @@ const onSubmit = handleSubmit(async (values) => {
                     label="Docker Image"
                     type="text"
                     placeholder="nginx:latest"
-                    left-icon="ph:docker-logo"
+                    left-icon="bxl:docker"
                     @update:model-value="handleChange"
                   />
                 </UiFormField>

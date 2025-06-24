@@ -6,31 +6,31 @@ import (
 
 // LoginResult represents the data returned upon a successful login.
 type LoginResult struct {
-	User                  User      `json:"user"`
-	AccessToken           string    `json:"accessToken"`
-	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
-	RefreshToken          string    `json:"refreshToken"`
-	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
+	User                  User      `json:"user" validate:"required"`
+	AccessToken           string    `json:"accessToken" validate:"required"`
+	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt" validate:"required"`
+	RefreshToken          string    `json:"refreshToken" validate:"required"`
+	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt" validate:"required"`
 }
 
 // RegisterResult represents the data returned upon a successful registration.
 type RegisterResult struct {
-	User                  User      `json:"user"`
-	AccessToken           string    `json:"accessToken"`
-	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
-	RefreshToken          string    `json:"refreshToken"`
-	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
+	User                  User      `json:"user" validate:"required"`
+	AccessToken           string    `json:"accessToken" validate:"required"`
+	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt" validate:"required"`
+	RefreshToken          string    `json:"refreshToken" validate:"required"`
+	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt" validate:"required"`
 }
 
 // RefreshResult represents the data returned upon a successful token refresh.
 type RefreshResult struct {
-	AccessToken          string    `json:"accessToken"`
-	AccessTokenExpiresAt time.Time `json:"accessTokenExpiresAt"`
+	AccessToken          string    `json:"accessToken" validate:"required"`
+	AccessTokenExpiresAt time.Time `json:"accessTokenExpiresAt" validate:"required"`
 }
 
 // InvalidateResult represents the response for a successful token invalidation.
 type InvalidateResult struct {
-	Ok bool `json:"ok"`
+	Ok bool `json:"ok" validate:"required"`
 }
 
 // AccessTokenPayload defines the PASETO payload for an access token.

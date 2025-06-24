@@ -27,8 +27,8 @@ func (ac *AuthController) Routes(server *fuego.Server) {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*types.RegisterResult, error) {
@@ -40,8 +40,8 @@ func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*type
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*types.LoginResult, error) {
@@ -53,7 +53,7 @@ func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*types.Logi
 }
 
 type RefreshRequest struct {
-	RefreshToken string `json:"refreshToken"`
+	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
 func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*types.RefreshResult, error) {

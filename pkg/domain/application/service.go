@@ -74,11 +74,7 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 			},
 		}
 
-		if err := s.ChangeServiceStatus(msg.Context(), update); err != nil {
-			log.Debug().Str("serviceId", receivedMsg.ID).Err(err).Msg("Failed to process status change for service.")
-			msg.Nack()
-			continue
-		}
+		s.ChangeServiceStatus(msg.Context(), update)
 		log.Debug().Str("serviceId", receivedMsg.ID).Str("status", string(receivedMsg.Status)).Msg("Successfully processed status change for service.")
 
 		msg.Ack()
@@ -87,22 +83,26 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 	return nil
 }
 
-func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update types.ServiceStatusInfoUpdate) error {
+func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update types.ServiceStatusInfoUpdate) {
 	err := s.repository.UpdateServiceStatus(ctx, update.ID, update.ServiceStatusInfo)
 	if err != nil {
-		return err
+		log.Error().Str("serviceId", update.ID).Err(err).Msg("Service status could not be updated.")
+		return
 	}
 	service, err := s.repository.GetServiceWithApplicationServices(ctx, update.ID)
 	if err != nil {
-		return err
+		log.Error().Str("serviceId", update.ID).Err(err).Msg("Service not found.")
+		return
 	}
 	application, err := service.Edges.ApplicationOrErr()
 	if err != nil {
-		return err
+		log.Error().Str("serviceId", service.ID).Err(err).Msg("Service's Application edge not found.")
+		return
 	}
 	services, err := application.Edges.ServicesOrErr()
 	if err != nil {
-		return err
+		log.Error().Str("serviceId", service.ID).Err(err).Msg("Application's service edges not found.")
+		return
 	}
 
 	var overallStatus types.ServiceStatus
@@ -154,10 +154,13 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 		log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish started status for service.")
 	}
 
-	return s.ChangeApplicationStatus(ctx, types.ApplicationStatusInfoUpdate{
+	err = s.ChangeApplicationStatus(ctx, types.ApplicationStatusInfoUpdate{
 		ID:                application.ID,
 		ServiceStatusInfo: applicationUpdate.ServiceStatusInfo,
 	})
+	if err != nil {
+		log.Error().Str("serviceId", service.ID).Err(err).Msg("Failed to change application status for service.")
+	}
 }
 
 func (s *ApplicationService) ChangeApplicationStatus(ctx context.Context, update types.ApplicationStatusInfoUpdate) error {

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { startApplication, stopApplication } from '~/client'
-
 definePageMeta({
   breadcrumb: {
     icon: 'ph:squares-four',

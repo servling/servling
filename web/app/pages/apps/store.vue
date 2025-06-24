@@ -77,7 +77,7 @@ const templates: Template[] = [{
       <div class="gap-4 grid grid-cols-2">
         <UiCard v-for="template in templates" :key="template.name">
           <div class="flex gap-4">
-            <img :src="template.avatarUrl" class="h-64px w-64px object-contain">
+            <NuxtImg :src="template.avatarUrl" width="64px" height="64px" fit="contain" class="object-contain" />
             <div class="flex">
               <div>
                 <h3 class="text-2xl font-bold">

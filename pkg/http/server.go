@@ -76,6 +76,16 @@ func parseEnumTag(tag reflect.StructTag, schema *openapi3.Schema) {
 
 func (s *HttpServer) Run() error {
 	server := fuego.NewServer(
+		fuego.WithSecurity(openapi3.SecuritySchemes{
+			"PasetoAuth": {
+				Value: &openapi3.SecurityScheme{
+					Type:         "http",
+					Scheme:       "bearer",
+					BearerFormat: "PASETO",
+					Description:  "Authenticate requests using a PASETO token in the `Authorization` header.",
+				},
+			},
+		}),
 		fuego.WithEngineOptions(
 			fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
 				UIHandler: func(specURL string) http.Handler {
@@ -113,7 +123,7 @@ func (s *HttpServer) Run() error {
 			log.Fatal().Err(err).Msg("Failed to subscribe to service events")
 		}
 	}()
-	applicationController := controller.NewApplicationController(applicationService)
+	applicationController := controller.NewApplicationController(applicationService, authService)
 	applicationController.Routes(server)
 
 	return server.Run()

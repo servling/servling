@@ -8,11 +8,14 @@ import (
 	"aidanwoods.dev/go-paseto"
 	"dario.lol/gotils/pkg/encoding"
 	"dario.lol/gotils/pkg/hash"
+	"github.com/go-fuego/fuego"
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/domain/user"
 	"github.com/servling/servling/pkg/types"
 )
+
+type CtxUserKey struct{}
 
 //goland:noinspection GoNameStartsWithPackageName
 type AuthService struct {
@@ -36,17 +39,17 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 		HashedPassword: hashedPassword,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	resultUser := types.UserFromEnt(databaseUser)
 
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	refreshToken, err := s.GenerateRefreshToken(*resultUser)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	return &types.RegisterResult{
 		User:                  *resultUser,
@@ -60,11 +63,11 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 func (s *AuthService) Login(ctx context.Context, username, password string) (*types.LoginResult, error) {
 	databaseUser, err := s.userRepository.GetByName(ctx, username)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	verified, err := hash.VerifyArgon2idString(databaseUser.Password, password)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	if !verified {
 		return nil, errors.New("invalid password")
@@ -73,11 +76,11 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*ty
 
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	refreshToken, err := s.GenerateRefreshToken(*resultUser)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	return &types.LoginResult{
 		User:                  *resultUser,
@@ -91,11 +94,11 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*ty
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*types.RefreshResult, error) {
 	tokenPayload, err := s.VerifyRefreshToken(refreshToken)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	databaseUser, err := s.userRepository.GetByID(ctx, tokenPayload.ID)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	if tokenPayload.TokenVersion != databaseUser.TokenVersion {
 		return nil, errors.New("invalid refresh token")
@@ -103,7 +106,7 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*types.
 	resultUser := types.UserFromEnt(databaseUser)
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
-		return nil, err
+		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
 	return &types.RefreshResult{
 		AccessToken:          accessToken.Token,
@@ -120,13 +123,9 @@ func (s *AuthService) Invalidate(ctx context.Context) error {
 }
 
 func (s *AuthService) GetUserFromContext(ctx context.Context) (*types.User, error) {
-	token, ok := ctx.Value("token").(string)
+	tokenPayload, ok := ctx.Value(CtxUserKey{}).(*types.AccessTokenPayload)
 	if !ok {
 		return nil, errors.New("invalid token")
-	}
-	tokenPayload, err := s.VerifyAccessToken(token)
-	if err != nil {
-		return nil, err
 	}
 	databaseUser, err := s.userRepository.GetByID(ctx, tokenPayload.ID)
 	if err != nil {
@@ -205,7 +204,7 @@ func (s *AuthService) VerifyRefreshToken(tokenString string) (*types.RefreshToke
 }
 
 func (s *AuthService) VerifyAccessToken(tokenString string) (*types.AccessTokenPayload, error) {
-	key, err := paseto.V4SymmetricKeyFromBytes(s.config.Security.Token.RefreshTokenPublicKey)
+	key, err := paseto.V4SymmetricKeyFromBytes(s.config.Security.Token.AccessTokenSecretKey)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,8 @@
-import type { Application, ApplicationStatusChangedMessage } from '~/client'
-import { getApplications } from '~/client'
-
 export const useApplicationStore = defineStore('applications', () => {
   const applications = ref<Application[]>([])
   const eventSource = ref<EventSource | null>(null)
-  const error = ref<Error | null>(null)
+  const error = ref<string | null>(null)
+  const { session } = useUserSession()
 
   async function fetchApplications() {
     try {
@@ -14,7 +12,7 @@ export const useApplicationStore = defineStore('applications', () => {
     }
     catch (err) {
       if (err instanceof Error) {
-        error.value = err
+        error.value = err.message
       }
       else {
         throw err
@@ -31,7 +29,7 @@ export const useApplicationStore = defineStore('applications', () => {
       return
     }
 
-    eventSource.value = new EventSource('http://localhost:9999/applications/events')
+    eventSource.value = new EventSource(`http://localhost:9999/applications/events?token=${session.value?.accessToken}`)
 
     eventSource.value.addEventListener('application.status-changed', (event) => {
       // eslint-disable-next-line ts/no-unsafe-argument
