@@ -1,8 +1,8 @@
 import { useApplicationStore } from '~/stores/application'
 
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin(() => {
   const appStore = useApplicationStore()
 
-  await appStore.fetchApplications()
-  appStore.initializeSseListener()
+  appStore.fetchApplications()
+  appStore.initializeSSEListener()
 })

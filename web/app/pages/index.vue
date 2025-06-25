@@ -86,7 +86,11 @@ const stats = {
           Application Status
         </h2>
 
-        <div v-if="applicationStats.count === 0" class="py-6 text-center rounded-lg bg-zinc-100 dark:bg-zinc-900">
+        <div v-if="applicationStore.fetching" class="flex justify-center">
+          <Icon name="ph:spinner-bold" class="text-primary h-6 w-6 animate-spin" />
+        </div>
+
+        <div v-else-if="applicationStats.count === 0" class="py-6 text-center rounded-lg bg-zinc-100 dark:bg-zinc-900">
           <p class="text-zinc-600 dark:text-zinc-400">
             No applications yet. Create your first one to get started.
           </p>

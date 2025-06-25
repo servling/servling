@@ -63,6 +63,10 @@ func SSEEventsController[T any](c fuego.Context[any, any], pubSub *gochannel.GoC
 	if !ok {
 		return nil, fuego.InternalServerError{Detail: "Streaming unsupported!"}
 	}
+	_, err := w.Write([]byte{'\n'})
+	if err != nil {
+		return nil, err
+	}
 
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()

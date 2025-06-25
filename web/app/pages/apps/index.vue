@@ -24,7 +24,11 @@ const applicationStore = useApplicationStore()
         </template>
       </UiPageHeader>
 
-      <div v-if="applicationStore.error" class="mt-6">
+      <div v-if="applicationStore.fetching" class="mt-6 flex justify-center">
+        <Icon name="ph:spinner-bold" class="text-primary h-6 w-6 animate-spin" />
+      </div>
+
+      <div v-else-if="applicationStore.error" class="mt-6">
         <UiAlert variant="error">
           {{ applicationStore.error }}
         </UiAlert>
