@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect"
-	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
+	"github.com/alexdrl/zerowater"
 	"github.com/docker/docker/client"
+	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/ent"
@@ -16,8 +17,7 @@ import (
 	"github.com/servling/servling/pkg/deploy"
 	"github.com/servling/servling/pkg/deploy/runtime"
 	"github.com/servling/servling/pkg/http"
-
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/servling/servling/pkg/util"
 )
 
 func initLogger() {
@@ -40,12 +40,12 @@ func Run() {
 		log.Fatal().Err(err).Msg("Error loading config")
 		return
 	}
-	entClient, err := ent.Open(dialect.SQLite, "file:ent.db?_fk=1")
+	entClient, err := ent.Open(dialect.Postgres, servlingConfig.Database.ToPostgresDSN())
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed opening connection to sqlite")
+		log.Fatal().Err(err).Msg("failed opening connection to postgres")
 		return
 	}
-	defer entClient.Close()
+	defer util.CloserOrLog(entClient, "failed closing connection to sqlite")
 	if err := entClient.Schema.Create(context.Background()); err != nil {
 		log.Fatal().Err(err).Msg("failed creating schema resources")
 		return
@@ -53,7 +53,7 @@ func Run() {
 
 	pubSub := gochannel.NewGoChannel(
 		gochannel.Config{},
-		watermill.NewStdLogger(false, false),
+		zerowater.NewZerologLoggerAdapter(log.Logger),
 	)
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)

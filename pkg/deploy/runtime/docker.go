@@ -112,7 +112,7 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 		Status: types.ServiceStatusStarting,
 	})
 	if err != nil {
-		log.Error().Str("scope", "docker").Str("serviceId", service.ID).Msg("Individual service failed to start.")
+		log.Error().Str("scope", "docker").Str("serviceId", service.ID).Msg("Failed to publish status change message.")
 	}
 	out, err := d.client.ImagePull(ctx, service.Image, image.PullOptions{})
 	if err != nil {
@@ -122,7 +122,7 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 			"failed to pull image %s", service.Image,
 		)
 	}
-	defer out.Close()
+	defer util.CloserOrLog(out, "Error closing image pull response")
 
 	exposedPorts := make(nat.PortSet)
 	portBindings := make(nat.PortMap)
@@ -227,4 +227,8 @@ func (d DockerRuntime) GetContainerByService(ctx context.Context, service *types
 	}
 
 	return &containers[0], nil
+}
+
+func (d DockerRuntime) PrepareStack(ctx context.Context, service *types.Application) error {
+	return nil
 }

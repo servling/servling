@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/pkg/domain/auth"
 	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/util"
 )
 
 func ProvideAuthContext(authService *auth.AuthService) func(http.Handler) http.Handler {
@@ -65,7 +66,7 @@ func RequireAuth() func(http.Handler) http.Handler {
 			if !ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"error": "Authentication is required"}`))
+				util.MustOrLog(w.Write([]byte(`{"error": "Authentication is required"}`)))("Error writing response")
 				return
 			}
 

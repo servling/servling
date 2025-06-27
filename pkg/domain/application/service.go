@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"dario.lol/gotils/pkg/encoding"
-	"dario.lol/gotils/pkg/pointer"
 	"dario.lol/gotils/pkg/slice"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/pkg/errors"
@@ -201,23 +200,8 @@ func (s *ApplicationService) StartService(ctx context.Context, service *types.Se
 	log.Debug().Str("serviceId", service.ID).Msg("Starting individual service...")
 	if err := s.deployManager.StartService(ctx, service); err != nil {
 		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to start.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     service.ID,
-			Status: types.ServiceStatusError,
-			Error:  pointer.Of(err.Error()),
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish error status for service")
-		}
 	} else {
 		log.Debug().Str("serviceId", service.ID).Msg("Individual service started successfully.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     service.ID,
-			Status: types.ServiceStatusRunning,
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish started status for service.")
-		}
 	}
 }
 
@@ -225,23 +209,8 @@ func (s *ApplicationService) StopService(ctx context.Context, service *types.Ser
 	log.Debug().Str("serviceId", service.ID).Msg("Stopping individual service...")
 	if err := s.deployManager.StopService(ctx, service); err != nil {
 		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to stop.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     service.ID,
-			Status: types.ServiceStatusError,
-			Error:  pointer.Of(err.Error()),
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish stopped status for service.")
-		}
 	} else {
 		log.Debug().Str("serviceId", service.ID).Msg("Individual service stopped successfully.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     service.ID,
-			Status: types.ServiceStatusStopped,
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish stopped status for service.")
-		}
 	}
 }
 
@@ -271,23 +240,8 @@ func (s *ApplicationService) Start(ctx context.Context, application *types.Appli
 	if len(allErrors) > 0 {
 		consolidatedError := strings.Join(allErrors, "; ")
 		log.Error().Str("applicationId", application.ID).Err(errors.New(consolidatedError)).Msg("Application failed to start.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     application.ID,
-			Status: types.ServiceStatusError,
-			Error:  pointer.Of(consolidatedError),
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
-		}
 	} else {
 		log.Debug().Str("applicationId", application.ID).Msg("All services for application started successfully.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     application.ID,
-			Status: types.ServiceStatusRunning,
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
-		}
 	}
 }
 
@@ -297,13 +251,14 @@ func (s *ApplicationService) Stop(ctx context.Context, application *types.Applic
 	log.Debug().Str("applicationId", application.ID).Msg("Stopping all services for application...")
 
 	for _, service := range application.Services {
+		service := service
 		wg.Add(1)
-		go func(srv *types.Service) {
+		go func() {
 			defer wg.Done()
-			if err := s.deployManager.StopService(ctx, srv); err != nil {
-				errorChannel <- fmt.Errorf("service '%s' failed: %w", srv.Name, err)
+			if err := s.deployManager.StopService(ctx, &service); err != nil {
+				errorChannel <- fmt.Errorf("service '%s' failed: %w", service.Name, err)
 			}
-		}(&service)
+		}()
 	}
 
 	wg.Wait()
@@ -317,22 +272,7 @@ func (s *ApplicationService) Stop(ctx context.Context, application *types.Applic
 	if len(allErrors) > 0 {
 		consolidatedError := strings.Join(allErrors, "; ")
 		log.Error().Str("applicationId", application.ID).Err(errors.New(consolidatedError)).Msg("Application failed to stop.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     application.ID,
-			Status: types.ServiceStatusError,
-			Error:  pointer.Of(consolidatedError),
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
-		}
 	} else {
 		log.Debug().Str("applicationId", application.ID).Msg("All services for application stopped successfully.")
-		msg := &types.ApplicationStatusChangedMessage{
-			ID:     application.ID,
-			Status: types.ServiceStatusStopped,
-		}
-		if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, msg); pubErr != nil {
-			log.Error().Str("applicationId", application.ID).Err(pubErr).Msg("Failed to publish started status for application.")
-		}
 	}
 }

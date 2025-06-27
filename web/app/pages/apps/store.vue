@@ -5,6 +5,7 @@ definePageMeta({
     ariaLabel: 'App Store',
     label: 'App Store',
   },
+  middleware: ['applications-store'],
 })
 
 interface Template {

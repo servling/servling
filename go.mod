@@ -13,8 +13,8 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-fuego/fuego v0.18.9-0.20250617165141-0589d6176aae
 	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/lib/pq v1.10.9
 	github.com/matoous/go-nanoid/v2 v2.1.0
-	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/slog-zerolog/v2 v2.7.3
@@ -27,6 +27,7 @@ require (
 	ariga.io/atlas v0.31.1-0.20250212144724-069be8033e83 // indirect
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
+	github.com/alexdrl/zerowater v0.0.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect

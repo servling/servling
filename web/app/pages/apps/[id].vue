@@ -5,6 +5,7 @@ definePageMeta({
     ariaLabel: 'Application',
     label: 'Application',
   },
+  middleware: ['applications-store'],
 })
 
 const route = useRoute()

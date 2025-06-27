@@ -41,11 +41,11 @@ async function handleStopApplication() {
 }
 
 const canStart = computed(() => {
-  return ['stopped', 'error'].includes(props.application.status)
+  return ['stopped', 'starting', 'error'].includes(props.application.status)
 })
 
 const canStop = computed(() => {
-  return ['running', 'starting', 'deploying'].includes(props.application.status)
+  return ['running', 'stopping', 'deploying'].includes(props.application.status)
 })
 </script>
 

@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -112,4 +114,14 @@ func decodeB64Hook(from reflect.Type, to reflect.Type, data interface{}) (interf
 	}
 
 	return data, nil
+}
+
+func (c *DatabaseConfig) ToPostgresDSN() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?search_path=public&sslmode=disable",
+		c.Username,
+		url.QueryEscape(c.Password),
+		c.Host,
+		c.Port,
+		c.Database,
+	)
 }

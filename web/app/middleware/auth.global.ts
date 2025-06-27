@@ -1,5 +1,5 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const { loggedIn, session } = useUserSession()
+  const { loggedIn } = useUserSession()
 
   if (to.meta.auth === 'ignore') {
     return

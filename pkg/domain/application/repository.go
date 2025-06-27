@@ -20,7 +20,7 @@ func NewApplicationRepository(client *ent.Client) *ApplicationRepository {
 }
 
 func (r *ApplicationRepository) GetAll(ctx context.Context) ([]*ent.Application, error) {
-	return r.client.Application.Query().All(ctx)
+	return r.client.Application.Query().WithServices().All(ctx)
 }
 
 func (r *ApplicationRepository) GetByID(ctx context.Context, id string) (*ent.Application, error) {

@@ -5,6 +5,7 @@ definePageMeta({
     ariaLabel: 'Applications',
     label: 'Applications',
   },
+  middleware: ['applications-store'],
 })
 
 const applicationStore = useApplicationStore()
