@@ -205,12 +205,12 @@ func (s *ApplicationService) StartService(ctx context.Context, service *types.Se
 	}
 }
 
-func (s *ApplicationService) StopService(ctx context.Context, service *types.Service) {
-	log.Debug().Str("serviceId", service.ID).Msg("Stopping individual service...")
-	if err := s.deployManager.StopService(ctx, service); err != nil {
-		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to stop.")
+func (s *ApplicationService) StopService(ctx context.Context, serviceID string) {
+	log.Debug().Str("serviceId", serviceID).Msg("Stopping individual service...")
+	if err := s.deployManager.StopService(ctx, serviceID); err != nil {
+		log.Error().Err(err).Str("serviceId", serviceID).Msg("Individual service failed to stop.")
 	} else {
-		log.Debug().Str("serviceId", service.ID).Msg("Individual service stopped successfully.")
+		log.Debug().Str("serviceId", serviceID).Msg("Individual service stopped successfully.")
 	}
 }
 
@@ -255,7 +255,7 @@ func (s *ApplicationService) Stop(ctx context.Context, application *types.Applic
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.deployManager.StopService(ctx, &service); err != nil {
+			if err := s.deployManager.StopService(ctx, service.ID); err != nil {
 				errorChannel <- fmt.Errorf("service '%s' failed: %w", service.Name, err)
 			}
 		}()

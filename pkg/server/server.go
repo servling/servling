@@ -62,7 +62,9 @@ func Run() {
 		return
 	}
 
-	deployManager := deploy.NewDeployManager(runtime.NewDockerRuntime(dockerClient, pubSub))
+	deployManager := deploy.NewDeployManager(runtime.NewDockerRuntime(dockerClient, pubSub), pubSub)
+
+	deployManager.WatchForServiceStatusInfoUpdates(context.Background())
 
 	httpServer := http.NewHttpServer(servlingConfig, entClient, pubSub, deployManager)
 	err = httpServer.Run()
