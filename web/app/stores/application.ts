@@ -16,7 +16,25 @@ export const useApplicationStore = defineStore('applications', () => {
     headers: {
       Authorization: `Bearer ${session.value?.accessToken}`,
     },
-  }), { autoReconnect: true })
+  }), {
+    autoReconnect: true,
+    async onReconnect() {
+      try {
+        applications.value = await getApplications({
+          composable: '$fetch',
+        })
+        fetching.value = false
+      }
+      catch (err) {
+        if (err instanceof Error) {
+          error.value = err.message
+        }
+        else {
+          throw err
+        }
+      }
+    },
+  })
 
   async function fetchApplications() {
     try {

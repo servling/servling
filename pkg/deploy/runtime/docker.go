@@ -18,7 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/ent/service"
 	"github.com/servling/servling/pkg/constants"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 	"github.com/servling/servling/pkg/util"
 )
 
@@ -36,72 +36,51 @@ func NewDockerRuntime(client *client.Client, pubSub *gochannel.GoChannel) *Docke
 	}
 }
 
-func GetServiceStatusInfo(summary *container.Summary) types.ServiceStatusInfo {
+func GetServiceStatusInfo(summary *container.Summary) model.ServiceStatusInfo {
 	switch summary.State {
 	case "running":
 		if strings.Contains(summary.Status, "(unhealthy)") {
-			return types.ServiceStatusInfo{
-				Status: types.ServiceStatusError,
+			return model.ServiceStatusInfo{
+				Status: model.ServiceStatusError,
 				Error:  pointer.Of(fmt.Sprintf("container is unhealthy: %s", summary.Status)),
 			}
 		}
 		if strings.Contains(summary.Status, "(health: starting)") {
-			return types.ServiceStatusInfo{Status: types.ServiceStatusStarting}
+			return model.ServiceStatusInfo{Status: model.ServiceStatusStarting}
 		}
-		return types.ServiceStatusInfo{Status: types.ServiceStatusRunning}
+		return model.ServiceStatusInfo{Status: model.ServiceStatusRunning}
 
 	case "created", "restarting":
-		return types.ServiceStatusInfo{Status: types.ServiceStatusStarting}
+		return model.ServiceStatusInfo{Status: model.ServiceStatusStarting}
 
 	case "removing", "paused":
-		return types.ServiceStatusInfo{Status: types.ServiceStatusStopping}
+		return model.ServiceStatusInfo{Status: model.ServiceStatusStopping}
 
 	case "exited", "dead":
 		var exitCode int
 		if n, _ := fmt.Sscanf(summary.Status, "Exited (%d)", &exitCode); n == 1 && exitCode != 0 {
-			return types.ServiceStatusInfo{
-				Status: types.ServiceStatusError,
+			return model.ServiceStatusInfo{
+				Status: model.ServiceStatusError,
 				Error:  pointer.Of(fmt.Sprintf("container exited with non-zero code: %s", summary.Status)),
 			}
 		}
 		if summary.State == "dead" {
-			return types.ServiceStatusInfo{
-				Status: types.ServiceStatusError,
+			return model.ServiceStatusInfo{
+				Status: model.ServiceStatusError,
 				Error:  pointer.Of(fmt.Sprintf("container is dead: %s", summary.Status)),
 			}
 		}
-		return types.ServiceStatusInfo{Status: types.ServiceStatusStopped}
+		return model.ServiceStatusInfo{Status: model.ServiceStatusStopped}
 
 	default:
-		return types.ServiceStatusInfo{
-			Status: types.ServiceStatusError,
+		return model.ServiceStatusInfo{
+			Status: model.ServiceStatusError,
 			Error:  pointer.Of(fmt.Sprintf("unknown container state '%s'", summary.State)),
 		}
 	}
 }
 
-func (d DockerRuntime) publishServiceError(
-	serviceID string,
-	originalErr error,
-	format string,
-	args ...any,
-) error {
-	detailedErr := fmt.Errorf(format+": %w", append(args, originalErr)...)
-
-	msg := types.ServiceStatusChangedMessage{
-		ID:     serviceID,
-		Status: types.ServiceStatusError,
-		Error:  pointer.Of(detailedErr.Error()),
-	}
-
-	if pubErr := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, msg); pubErr != nil {
-		return fmt.Errorf("failed to publish error status for service %s: %w", serviceID, pubErr)
-	}
-
-	return detailedErr
-}
-
-func (d DockerRuntime) GetServiceStatusInfo(ctx context.Context, serviceID string) (*types.ServiceStatusInfo, error) {
+func (d DockerRuntime) GetServiceStatusInfo(ctx context.Context, serviceID string) (*model.ServiceStatusInfo, error) {
 	summary, err := d.GetContainerByServiceID(ctx, serviceID)
 	if err != nil {
 		return nil, err
@@ -109,17 +88,18 @@ func (d DockerRuntime) GetServiceStatusInfo(ctx context.Context, serviceID strin
 	return pointer.Of(GetServiceStatusInfo(summary)), nil
 }
 
-func (d DockerRuntime) StartService(ctx context.Context, service *types.Service) error {
-	err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, types.ServiceStatusChangedMessage{
+func (d DockerRuntime) StartService(ctx context.Context, service *model.Service) error {
+	err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, model.ServiceStatusChangedMessage{
 		ID:     service.ID,
-		Status: types.ServiceStatusStarting,
+		Status: model.ServiceStatusStarting,
 	})
 	if err != nil {
 		log.Error().Str("scope", "docker").Str("serviceId", service.ID).Msg("Failed to publish status change message.")
 	}
 	out, err := d.client.ImagePull(ctx, service.Image, image.PullOptions{})
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			service.ID,
 			err,
 			"failed to pull image %s", service.Image,
@@ -132,7 +112,8 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 		All:     true,
 	})
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			service.ID,
 			err,
 			"failed to find existing container %s", service.ServiceName,
@@ -156,8 +137,13 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 		}
 
 		labels := map[string]string{
-			"servling.managed":   "true",
-			"servling.serviceId": service.ID,
+			"servling.managed":           "true",
+			"servling.serviceId":         service.ID,
+			"com.docker.compose.project": strings.Split(service.ServiceName, "-")[0],
+		}
+
+		for key, value := range generateTraefikLabels(service) {
+			labels[key] = value
 		}
 
 		for key, value := range service.Labels {
@@ -175,7 +161,8 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 			PortBindings: portBindings,
 		}, nil, nil, service.ServiceName)
 		if err != nil {
-			return d.publishServiceError(
+			return PublishServiceError(
+				d.pubSub,
 				service.ID,
 				err,
 				"failed to create container %s", service.ServiceName,
@@ -186,29 +173,31 @@ func (d DockerRuntime) StartService(ctx context.Context, service *types.Service)
 		err = d.client.ContainerStart(ctx, existingContainers[0].ID, container.StartOptions{})
 	}
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			service.ID,
 			err,
 			"failed start container %s", service.ServiceName,
 		)
 	}
-	return util.Publish(d.pubSub, constants.TopicServiceStatusChanged, types.ServiceStatusChangedMessage{
+	return util.Publish(d.pubSub, constants.TopicServiceStatusChanged, model.ServiceStatusChangedMessage{
 		ID:     service.ID,
-		Status: types.ServiceStatusRunning,
+		Status: model.ServiceStatusRunning,
 	})
 }
 
 func (d DockerRuntime) StopService(ctx context.Context, serviceID string) error {
-	err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, types.ServiceStatusChangedMessage{
+	err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, model.ServiceStatusChangedMessage{
 		ID:     serviceID,
-		Status: types.ServiceStatusStopping,
+		Status: model.ServiceStatusStopping,
 	})
 	if err != nil {
 		log.Error().Str("serviceId", serviceID).Err(err).Msg("Individual service failed to stop.")
 	}
 	containerSummary, err := d.GetContainerByServiceID(ctx, serviceID)
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			serviceID,
 			err,
 			"failed to pull image %s", service.Image,
@@ -216,7 +205,8 @@ func (d DockerRuntime) StopService(ctx context.Context, serviceID string) error 
 	}
 	err = d.client.ContainerStop(ctx, containerSummary.ID, container.StopOptions{})
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			serviceID,
 			err,
 			"failed to stop container %s", service.Image,
@@ -224,15 +214,16 @@ func (d DockerRuntime) StopService(ctx context.Context, serviceID string) error 
 	}
 	err = d.client.ContainerRemove(ctx, containerSummary.ID, container.RemoveOptions{})
 	if err != nil {
-		return d.publishServiceError(
+		return PublishServiceError(
+			d.pubSub,
 			serviceID,
 			err,
 			"failed to remove container %s", service.Image,
 		)
 	}
-	return util.Publish(d.pubSub, constants.TopicServiceStatusChanged, types.ServiceStatusChangedMessage{
+	return util.Publish(d.pubSub, constants.TopicServiceStatusChanged, model.ServiceStatusChangedMessage{
 		ID:     serviceID,
-		Status: types.ServiceStatusStopped,
+		Status: model.ServiceStatusStopped,
 	})
 }
 
@@ -245,7 +236,8 @@ func (d DockerRuntime) GetContainerByServiceID(ctx context.Context, serviceID st
 		Filters: containerFilters,
 	})
 	if err != nil {
-		return nil, d.publishServiceError(
+		return nil, PublishServiceError(
+			d.pubSub,
 			serviceID,
 			err,
 			"failed to list containers %s", service.Image,
@@ -259,11 +251,11 @@ func (d DockerRuntime) GetContainerByServiceID(ctx context.Context, serviceID st
 	return &containers[0], nil
 }
 
-func (d DockerRuntime) PrepareStack(ctx context.Context, service *types.Application) error {
+func (d DockerRuntime) PrepareStack(ctx context.Context, service *model.Application) error {
 	return nil
 }
 
-func (d DockerRuntime) WatchForChanges(ctx context.Context, onUpdate func(statusInfo *types.ServiceStatusInfoUpdate)) error {
+func (d DockerRuntime) WatchForChanges(ctx context.Context, onUpdate func(statusInfo *model.ServiceStatusInfoUpdate)) error {
 	eventFilters := filters.NewArgs(
 		filters.Arg("type", "container"),
 		filters.Arg("event", "start"),
@@ -301,7 +293,7 @@ func (d DockerRuntime) WatchForChanges(ctx context.Context, onUpdate func(status
 }
 
 // processEvent fetches container details and calls the callback.
-func (d DockerRuntime) processEvent(ctx context.Context, msg events.Message, onUpdate func(statusInfo *types.ServiceStatusInfoUpdate)) {
+func (d DockerRuntime) processEvent(ctx context.Context, msg events.Message, onUpdate func(statusInfo *model.ServiceStatusInfoUpdate)) {
 	serviceID, ok := msg.Actor.Attributes["servling.serviceId"]
 	if !ok || serviceID == "" {
 		// This should not happen due to the event filter, but it's a good safeguard.
@@ -309,10 +301,10 @@ func (d DockerRuntime) processEvent(ctx context.Context, msg events.Message, onU
 	}
 
 	if msg.Action == "destroy" {
-		onUpdate(&types.ServiceStatusInfoUpdate{
+		onUpdate(&model.ServiceStatusInfoUpdate{
 			ID: serviceID,
-			ServiceStatusInfo: types.ServiceStatusInfo{
-				Status: types.ServiceStatusStopped,
+			ServiceStatusInfo: model.ServiceStatusInfo{
+				Status: model.ServiceStatusStopped,
 			},
 		})
 		return
@@ -330,10 +322,10 @@ func (d DockerRuntime) processEvent(ctx context.Context, msg events.Message, onU
 	}
 
 	if len(summaries) == 0 {
-		onUpdate(&types.ServiceStatusInfoUpdate{
+		onUpdate(&model.ServiceStatusInfoUpdate{
 			ID: serviceID,
-			ServiceStatusInfo: types.ServiceStatusInfo{
-				Status: types.ServiceStatusStopped,
+			ServiceStatusInfo: model.ServiceStatusInfo{
+				Status: model.ServiceStatusStopped,
 			},
 		})
 		return
@@ -341,7 +333,7 @@ func (d DockerRuntime) processEvent(ctx context.Context, msg events.Message, onU
 
 	// Use your provided function to get the status
 	statusInfo := GetServiceStatusInfo(&summaries[0])
-	statusInfoUpdate := types.ServiceStatusInfoUpdate{
+	statusInfoUpdate := model.ServiceStatusInfoUpdate{
 		ID:                serviceID,
 		ServiceStatusInfo: statusInfo,
 	}
@@ -364,4 +356,44 @@ func (d DockerRuntime) GetAllServiceIDs(ctx context.Context) ([]*string, error) 
 		}
 		return &id
 	}), nil
+}
+
+func generateTraefikLabels(service *model.Service) map[string]string {
+	labels := make(map[string]string)
+	ingressesByPort := make(map[uint16][]*model.Ingress)
+
+	for _, ingress := range service.Ingresses {
+		if ingress.Service == nil || ingress.Domain == nil {
+			continue
+		}
+		ingressesByPort[ingress.TargetPort] = append(ingressesByPort[ingress.TargetPort], ingress)
+	}
+
+	for port, group := range ingressesByPort {
+		if len(group) == 0 {
+			continue
+		}
+
+		serviceName := group[0].Service.Name
+
+		labels[fmt.Sprintf("traefik.enable")] = "true"
+
+		routerKey := fmt.Sprintf("traefik.http.routers.%s", serviceName)
+		labels[fmt.Sprintf("%s.entrypoints", routerKey)] = "https"
+		labels[fmt.Sprintf("%s.tls", routerKey)] = "true"
+		labels[fmt.Sprintf("%s.service", routerKey)] = serviceName
+
+		var hostRules []string
+		for _, ingress := range group {
+			hostRules = append(hostRules, fmt.Sprintf("Host(`%s`)", ingress.Domain.Name))
+		}
+		rule := strings.Join(hostRules, " || ")
+		labels[fmt.Sprintf("%s.rule", routerKey)] = rule
+
+		serviceKey := fmt.Sprintf("traefik.http.services.%s.loadBalancer", serviceName)
+		labels[fmt.Sprintf("%s.server.port", serviceKey)] = fmt.Sprintf("%d", port)
+		labels[fmt.Sprintf("%s.passhostheader", serviceKey)] = "true"
+	}
+
+	return labels
 }

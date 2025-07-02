@@ -7,7 +7,9 @@ export default defineNuxtRouteMiddleware(async () => {
     appStore.initializeSSEListener()
   }
 
-  onUnmounted(() => {
-    appStore.closeSSEListener()
+  watch(loggedIn, (nowLoggedIn) => {
+    if (!nowLoggedIn) {
+      appStore.closeSSEListener()
+    }
   })
 })

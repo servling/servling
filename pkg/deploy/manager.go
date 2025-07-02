@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/pkg/constants"
 	"github.com/servling/servling/pkg/deploy/runtime"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 	"github.com/servling/servling/pkg/util"
 )
 
@@ -38,35 +38,43 @@ func (d *DeployManager) WatchForServiceStatusInfoUpdates(ctx context.Context) {
 		defer ticker.Stop()
 
 		pollAndPublish := func() {
-			// 1. Get only the service IDs
 			serviceIDs, err := d.runtime.GetAllServiceIDs(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Polling failed: could not get service IDs")
+				_ = runtime.PublishServiceError(
+					d.pubSub,
+					"*",
+					err,
+					"error connecting to docker daemon",
+				)
 				return
 			}
-			for _, id := range slice.FilterNotNil(serviceIDs) {
-				// 2. Get status for each service ID in its own goroutine
-				go func(serviceID string) {
-					statusInfo, err := d.GetServiceStatusInfo(ctx, serviceID)
-					if err != nil {
-						log.Error().Err(err).Str("serviceId", serviceID).Msg("Polling failed: could not get service status")
-						return
-					}
+			for _, serviceID := range slice.FilterNotNil(serviceIDs) {
+				log.Debug().Str("serviceId", serviceID).Msg("Getting service info")
+				statusInfo, err := d.GetServiceStatusInfo(ctx, serviceID)
+				if err != nil {
+					log.Error().Err(err).Str("serviceId", serviceID).Msg("Polling failed: could not get service status")
+					_ = runtime.PublishServiceError(
+						d.pubSub,
+						serviceID,
+						err,
+						"error getting service status",
+					)
+					return
+				}
 
-					// 3. Publish the update
-					err = util.Publish(d.pubSub, constants.TopicServiceStatusChanged, &types.ServiceStatusChangedMessage{
-						ID:     serviceID,
-						Status: statusInfo.Status,
-						Error:  statusInfo.Error,
-					})
-					if err != nil {
-						log.Error().Err(err).Str("serviceId", serviceID).Msg("Polling failed: could not publish status update")
-					}
-				}(id)
+				// 3. Publish the update
+				err = util.Publish(d.pubSub, constants.TopicServiceStatusChanged, &model.ServiceStatusChangedMessage{
+					ID:     serviceID,
+					Status: statusInfo.Status,
+					Error:  statusInfo.Error,
+				})
+				if err != nil {
+					log.Error().Err(err).Str("serviceId", serviceID).Msg("Polling failed: could not publish status update")
+				}
 			}
 		}
 
-		// Run initial poll and then loop
 		pollAndPublish()
 		for {
 			select {
@@ -79,10 +87,8 @@ func (d *DeployManager) WatchForServiceStatusInfoUpdates(ctx context.Context) {
 		}
 	}()
 
-	// --- Event-Driven Logic (kept exactly as requested) ---
-	log.Info().Msg("Starting event-driven service status watcher.")
-	err := d.runtime.WatchForChanges(ctx, func(statusInfo *types.ServiceStatusInfoUpdate) {
-		err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, &types.ServiceStatusChangedMessage{
+	err := d.runtime.WatchForChanges(ctx, func(statusInfo *model.ServiceStatusInfoUpdate) {
+		err := util.Publish(d.pubSub, constants.TopicServiceStatusChanged, &model.ServiceStatusChangedMessage{
 			ID:     statusInfo.ID,
 			Status: statusInfo.Status,
 			Error:  statusInfo.Error,
@@ -96,7 +102,7 @@ func (d *DeployManager) WatchForServiceStatusInfoUpdates(ctx context.Context) {
 	}
 }
 
-func (d *DeployManager) StartService(ctx context.Context, service *types.Service) error {
+func (d *DeployManager) StartService(ctx context.Context, service *model.Service) error {
 	return d.runtime.StartService(ctx, service)
 }
 
@@ -104,11 +110,11 @@ func (d *DeployManager) StopService(ctx context.Context, serviceID string) error
 	return d.runtime.StopService(ctx, serviceID)
 }
 
-func (d *DeployManager) GetServiceStatusInfo(ctx context.Context, serviceID string) (*types.ServiceStatusInfo, error) {
+func (d *DeployManager) GetServiceStatusInfo(ctx context.Context, serviceID string) (*model.ServiceStatusInfo, error) {
 	return d.runtime.GetServiceStatusInfo(ctx, serviceID)
 }
 
-func (d *DeployManager) Deploy(ctx context.Context, application *types.Application) {
+func (d *DeployManager) Deploy(ctx context.Context, application *model.Application) {
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, len(application.Services))
 	log.Debug().Str("applicationId", application.ID).Int("serviceCount", len(application.Services)).Msg("Starting services for application...")
@@ -118,7 +124,7 @@ func (d *DeployManager) Deploy(ctx context.Context, application *types.Applicati
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := d.StartService(ctx, &service); err != nil {
+			if err := d.StartService(ctx, service); err != nil {
 				errorChannel <- fmt.Errorf("service '%s' failed: %w", service.Name, err)
 			}
 		}()

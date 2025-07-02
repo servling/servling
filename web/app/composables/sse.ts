@@ -1,8 +1,19 @@
-import type { Ref } from 'vue'
-
 interface UseSseOptions {
+  /**
+   * Enables automatic reconnection if the connection is lost.
+   * @default false
+   */
   autoReconnect?: boolean
+  /**
+   * Delay in milliseconds before attempting to reconnect.
+   * @default 3000
+   */
   reconnectDelay?: number
+  /**
+   * Hook that is called just before a reconnection attempt.
+   * Can be an async function.
+   */
+  onReconnect?: () => Promise<void> | void
 }
 
 interface UseSseReturn<T> {
@@ -17,46 +28,54 @@ export function useSSE<T = unknown>(
   streamFactory: () => Promise<ReadableStream<Uint8Array>>,
   options: UseSseOptions = {},
 ): UseSseReturn<T> {
-  const { autoReconnect = false, reconnectDelay = 3000 } = options
+  const { autoReconnect = false, reconnectDelay = 3000, onReconnect } = options
 
   const event = ref<T | null>(null)
   const status = ref<'Idle' | 'Connecting' | 'Processing' | 'Finished' | 'Error'>('Idle')
   const error = ref<Error | null>(null)
 
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
-  let leftover = ''
-  let isClosedByUser = false
+  let abortController: AbortController | undefined
   let reconnectTimeoutId: ReturnType<typeof setTimeout> | undefined
 
-  let handleReconnect: () => void
-
-  const connect = async (): Promise<void> => {
-    if (import.meta.server)
+  // Using function declarations to allow hoisting, which prevents
+  // 'no-use-before-define' ESLint errors since connect and scheduleReconnect
+  // call each other.
+  async function connect(): Promise<void> {
+    if (import.meta.server || status.value === 'Processing')
       return
-    if (['Processing', 'Connecting'].includes(status.value)) {
-      return
-    }
 
-    isClosedByUser = false
     clearTimeout(reconnectTimeoutId)
+    reconnectTimeoutId = undefined
+
+    abortController?.abort()
+    abortController = new AbortController()
+    const { signal } = abortController
+
     status.value = 'Connecting'
     error.value = null
-    event.value = null
+
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
 
     try {
       const stream = await streamFactory()
+      if (signal.aborted)
+        return
+
       reader = stream.getReader()
-      const decoder = new TextDecoder()
       status.value = 'Processing'
+      let leftover = ''
+      const decoder = new TextDecoder()
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) {
-          status.value = 'Finished'
-          handleReconnect()
+
+        if (done || signal.aborted) {
+          if (!signal.aborted)
+            status.value = 'Finished'
+          scheduleReconnect()
           break
         }
-        // ... (rest of the processing logic is unchanged)
+
         const textChunk = leftover + decoder.decode(value, { stream: true })
         const lines = textChunk.split(/\r?\n/)
         leftover = lines.pop() ?? ''
@@ -77,46 +96,50 @@ export function useSSE<T = unknown>(
       }
     }
     catch (e: unknown) {
-      // Improved Catch Block: If the error is not a user-initiated abort, try to reconnect.
-      if (e instanceof Error && (e.name === 'AbortError' || e.message.includes('cancelled'))) {
-        status.value = 'Finished'
-      }
-      else {
+      if (!signal.aborted) {
         console.error('An error occurred during SSE processing:', e)
         error.value = e instanceof Error ? e : new Error(String(e))
         status.value = 'Error'
-        handleReconnect()
+        scheduleReconnect()
       }
     }
     finally {
-      if (reader) {
+      if (reader && !signal.aborted)
         reader.releaseLock()
-        reader = undefined
-      }
     }
   }
 
-  handleReconnect = () => {
-    if (!autoReconnect || isClosedByUser)
+  function scheduleReconnect(): void {
+    if (!autoReconnect || reconnectTimeoutId)
       return
 
     status.value = 'Connecting'
+
     reconnectTimeoutId = setTimeout(() => {
-      if (!isClosedByUser) {
-        void connect()
+      // This wrapper avoids the 'no-misused-promises' ESLint error.
+      const reconnect = async () => {
+        reconnectTimeoutId = undefined
+        if (onReconnect) {
+          try {
+            await onReconnect()
+          }
+          catch (e) {
+            console.error('Error in onReconnect hook:', e)
+          }
+        }
+        if (status.value === 'Finished')
+          return
+        await connect()
       }
+      void reconnect()
     }, reconnectDelay)
   }
 
-  const close = (): void => {
-    isClosedByUser = true
+  function close(): void {
     clearTimeout(reconnectTimeoutId)
-
-    if (reader) {
-      reader.cancel('Stream closed by user.').catch(() => {})
-      reader = undefined
-      status.value = 'Finished'
-    }
+    reconnectTimeoutId = undefined
+    abortController?.abort()
+    status.value = 'Finished'
   }
 
   return {

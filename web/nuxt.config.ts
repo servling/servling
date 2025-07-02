@@ -13,6 +13,7 @@ export default defineNuxtConfig({
     'reka-ui/nuxt',
     'nuxt-auth-utils',
     '@hey-api/nuxt',
+    'nuxt-build-cache',
   ],
   devtools: { enabled: true },
   colorMode: {

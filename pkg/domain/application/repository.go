@@ -7,7 +7,8 @@ import (
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/ent/application"
 	"github.com/servling/servling/ent/service"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
+	"github.com/servling/servling/pkg/util"
 )
 
 //goland:noinspection GoNameStartsWithPackageName
@@ -27,6 +28,12 @@ func (r *ApplicationRepository) GetByID(ctx context.Context, id string) (*ent.Ap
 	return r.client.Application.Query().Where(application.ID(id)).WithServices().Only(ctx)
 }
 
+func (r *ApplicationRepository) GetByIDWithIngresses(ctx context.Context, id string) (*ent.Application, error) {
+	return r.client.Application.Query().Where(application.ID(id)).WithServices(func(query *ent.ServiceQuery) {
+		query.WithIngresses()
+	}).Only(ctx)
+}
+
 func (r *ApplicationRepository) Delete(ctx context.Context, id string) error {
 	return r.client.Application.DeleteOneID(id).Exec(ctx)
 }
@@ -37,22 +44,26 @@ func (r *ApplicationRepository) GetServiceWithApplicationServices(ctx context.Co
 	}).Only(ctx)
 }
 
-func (r *ApplicationRepository) UpdateServiceStatus(ctx context.Context, id string, info types.ServiceStatusInfo) error {
+func (r *ApplicationRepository) GetAllServices(ctx context.Context) ([]*ent.Service, error) {
+	return r.client.Service.Query().All(ctx)
+}
+
+func (r *ApplicationRepository) UpdateServiceStatus(ctx context.Context, id string, info model.ServiceStatusInfo) error {
 	return r.client.Service.Update().Where(service.IDEQ(id)).SetStatus(string(info.Status)).SetNillableError(info.Error).Exec(ctx)
 }
 
-func (r *ApplicationRepository) UpdateApplicationStatus(ctx context.Context, id string, info types.ServiceStatusInfo) error {
+func (r *ApplicationRepository) UpdateApplicationStatus(ctx context.Context, id string, info model.ServiceStatusInfo) error {
 	return r.client.Application.Update().Where(application.IDEQ(id)).SetStatus(string(info.Status)).SetNillableError(info.Error).Exec(ctx)
 }
 
-func (r *ApplicationRepository) CreateService(ctx context.Context, applicationName string, start bool, input types.CreateServiceInput) (*ent.Service, error) {
-	status := types.ServiceStatusStopped
+func (r *ApplicationRepository) CreateService(ctx context.Context, applicationName string, start bool, input model.CreateServiceInput) (*ent.Service, error) {
+	status := model.ServiceStatusStopped
 	if start {
-		status = types.ServiceStatusStarting
+		status = model.ServiceStatusStarting
 	}
 	return r.client.Service.Create().
 		SetName(input.Name).
-		SetServiceName(applicationName + "_" + input.Name).
+		SetServiceName(util.NormalizeContainerName(applicationName) + "-" + util.NormalizeContainerName(input.Name)).
 		SetImage(input.Image).
 		SetEntrypoint(input.Entrypoint).
 		SetEnvironment(input.Environment).
@@ -62,7 +73,7 @@ func (r *ApplicationRepository) CreateService(ctx context.Context, applicationNa
 		Save(ctx)
 }
 
-func (r *ApplicationRepository) Create(ctx context.Context, input types.CreateApplicationInput) (*ent.Application, error) {
+func (r *ApplicationRepository) Create(ctx context.Context, input model.CreateApplicationInput) (*ent.Application, error) {
 	if len(input.Services) <= 0 {
 		return nil, errors.New("no services to create")
 	}
@@ -80,9 +91,9 @@ func (r *ApplicationRepository) Create(ctx context.Context, input types.CreateAp
 		return nil, errors.New("not all services could be created")
 	}
 
-	status := types.ServiceStatusStopped
+	status := model.ServiceStatusStopped
 	if input.Start {
-		status = types.ServiceStatusStarting
+		status = model.ServiceStatusStarting
 	}
 
 	app, err := r.client.Application.Create().

@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
@@ -12,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/predicate"
 	"github.com/servling/servling/ent/service"
 )
@@ -24,6 +26,7 @@ type ServiceQuery struct {
 	inters          []Interceptor
 	predicates      []predicate.Service
 	withApplication *ApplicationQuery
+	withIngresses   *IngressQuery
 	withFKs         bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -76,6 +79,28 @@ func (sq *ServiceQuery) QueryApplication() *ApplicationQuery {
 			sqlgraph.From(service.Table, service.FieldID, selector),
 			sqlgraph.To(application.Table, application.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, service.ApplicationTable, service.ApplicationColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(sq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryIngresses chains the current query on the "ingresses" edge.
+func (sq *ServiceQuery) QueryIngresses() *IngressQuery {
+	query := (&IngressClient{config: sq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := sq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := sq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(service.Table, service.FieldID, selector),
+			sqlgraph.To(ingress.Table, ingress.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, service.IngressesTable, service.IngressesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(sq.driver.Dialect(), step)
 		return fromU, nil
@@ -276,6 +301,7 @@ func (sq *ServiceQuery) Clone() *ServiceQuery {
 		inters:          append([]Interceptor{}, sq.inters...),
 		predicates:      append([]predicate.Service{}, sq.predicates...),
 		withApplication: sq.withApplication.Clone(),
+		withIngresses:   sq.withIngresses.Clone(),
 		// clone intermediate query.
 		sql:  sq.sql.Clone(),
 		path: sq.path,
@@ -290,6 +316,17 @@ func (sq *ServiceQuery) WithApplication(opts ...func(*ApplicationQuery)) *Servic
 		opt(query)
 	}
 	sq.withApplication = query
+	return sq
+}
+
+// WithIngresses tells the query-builder to eager-load the nodes that are connected to
+// the "ingresses" edge. The optional arguments are used to configure the query builder of the edge.
+func (sq *ServiceQuery) WithIngresses(opts ...func(*IngressQuery)) *ServiceQuery {
+	query := (&IngressClient{config: sq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	sq.withIngresses = query
 	return sq
 }
 
@@ -372,8 +409,9 @@ func (sq *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 		nodes       = []*Service{}
 		withFKs     = sq.withFKs
 		_spec       = sq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			sq.withApplication != nil,
+			sq.withIngresses != nil,
 		}
 	)
 	if sq.withApplication != nil {
@@ -403,6 +441,13 @@ func (sq *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 	if query := sq.withApplication; query != nil {
 		if err := sq.loadApplication(ctx, query, nodes, nil,
 			func(n *Service, e *Application) { n.Edges.Application = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := sq.withIngresses; query != nil {
+		if err := sq.loadIngresses(ctx, query, nodes,
+			func(n *Service) { n.Edges.Ingresses = []*Ingress{} },
+			func(n *Service, e *Ingress) { n.Edges.Ingresses = append(n.Edges.Ingresses, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -438,6 +483,37 @@ func (sq *ServiceQuery) loadApplication(ctx context.Context, query *ApplicationQ
 		for i := range nodes {
 			assign(nodes[i], n)
 		}
+	}
+	return nil
+}
+func (sq *ServiceQuery) loadIngresses(ctx context.Context, query *IngressQuery, nodes []*Service, init func(*Service), assign func(*Service, *Ingress)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*Service)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Ingress(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(service.IngressesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.service_ingresses
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "service_ingresses" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "service_ingresses" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }

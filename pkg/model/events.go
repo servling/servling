@@ -1,4 +1,4 @@
-package types
+package model
 
 type ApplicationStatusChangedMessage struct {
 	ID     string        `json:"id" validate:"required"`

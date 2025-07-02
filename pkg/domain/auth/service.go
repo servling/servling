@@ -12,7 +12,7 @@ import (
 	"github.com/servling/servling/ent"
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/domain/user"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 )
 
 type CtxUserKey struct{}
@@ -27,21 +27,21 @@ func NewAuthService(config *config.Config, client *ent.Client) *AuthService {
 	return &AuthService{config: config, userRepository: user.NewUserRepository(client)}
 }
 
-func (s *AuthService) Register(ctx context.Context, username, password string) (*types.RegisterResult, error) {
+func (s *AuthService) Register(ctx context.Context, username, password string) (*model.RegisterResult, error) {
 	hashedPassword, err := hash.Argon2idStringToString(password)
 
 	if err != nil {
 		return nil, err
 	}
 
-	databaseUser, err := s.userRepository.Create(ctx, types.CreateUserInput{
+	databaseUser, err := s.userRepository.Create(ctx, model.CreateUserInput{
 		Username:       username,
 		HashedPassword: hashedPassword,
 	})
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
-	resultUser := types.UserFromEnt(databaseUser)
+	resultUser := model.UserFromEnt(databaseUser)
 
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
-	return &types.RegisterResult{
+	return &model.RegisterResult{
 		User:                  *resultUser,
 		AccessToken:           accessToken.Token,
 		AccessTokenExpiresAt:  accessToken.ExpiresAt,
@@ -60,7 +60,7 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 	}, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, username, password string) (*types.LoginResult, error) {
+func (s *AuthService) Login(ctx context.Context, username, password string) (*model.LoginResult, error) {
 	databaseUser, err := s.userRepository.GetByName(ctx, username)
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
@@ -72,7 +72,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*ty
 	if !verified {
 		return nil, errors.New("invalid password")
 	}
-	resultUser := types.UserFromEnt(databaseUser)
+	resultUser := model.UserFromEnt(databaseUser)
 
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*ty
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
-	return &types.LoginResult{
+	return &model.LoginResult{
 		User:                  *resultUser,
 		AccessToken:           accessToken.Token,
 		AccessTokenExpiresAt:  accessToken.ExpiresAt,
@@ -91,7 +91,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*ty
 	}, nil
 }
 
-func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*types.RefreshResult, error) {
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*model.RefreshResult, error) {
 	tokenPayload, err := s.VerifyRefreshToken(refreshToken)
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
@@ -103,12 +103,12 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*types.
 	if tokenPayload.TokenVersion != databaseUser.TokenVersion {
 		return nil, errors.New("invalid refresh token")
 	}
-	resultUser := types.UserFromEnt(databaseUser)
+	resultUser := model.UserFromEnt(databaseUser)
 	accessToken, err := s.GenerateAccessToken(*resultUser)
 	if err != nil {
 		return nil, fuego.ForbiddenError{Detail: err.Error()}
 	}
-	return &types.RefreshResult{
+	return &model.RefreshResult{
 		AccessToken:          accessToken.Token,
 		AccessTokenExpiresAt: accessToken.ExpiresAt,
 	}, nil
@@ -122,8 +122,8 @@ func (s *AuthService) Invalidate(ctx context.Context) error {
 	return s.userRepository.IncrementTokenVersion(ctx, currentUser.ID)
 }
 
-func (s *AuthService) GetUserFromContext(ctx context.Context) (*types.User, error) {
-	tokenPayload, ok := ctx.Value(CtxUserKey{}).(*types.AccessTokenPayload)
+func (s *AuthService) GetUserFromContext(ctx context.Context) (*model.User, error) {
+	tokenPayload, ok := ctx.Value(CtxUserKey{}).(*model.AccessTokenPayload)
 	if !ok {
 		return nil, errors.New("invalid token")
 	}
@@ -131,10 +131,10 @@ func (s *AuthService) GetUserFromContext(ctx context.Context) (*types.User, erro
 	if err != nil {
 		return nil, err
 	}
-	return types.UserFromEnt(databaseUser), nil
+	return model.UserFromEnt(databaseUser), nil
 }
 
-func (s *AuthService) GenerateAccessToken(user types.User) (*types.TokenResult, error) {
+func (s *AuthService) GenerateAccessToken(user model.User) (*model.TokenResult, error) {
 	token := paseto.NewToken()
 	expiresAt := time.Now().Add(s.config.Security.Token.AccessTokenDuration)
 
@@ -153,13 +153,13 @@ func (s *AuthService) GenerateAccessToken(user types.User) (*types.TokenResult, 
 		return nil, err
 	}
 
-	return &types.TokenResult{
+	return &model.TokenResult{
 		Token:     token.V4Encrypt(secretKey, nil),
 		ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (s *AuthService) GenerateRefreshToken(user types.User) (*types.TokenResult, error) {
+func (s *AuthService) GenerateRefreshToken(user model.User) (*model.TokenResult, error) {
 	token := paseto.NewToken()
 	expiresAt := time.Now().Add(s.config.Security.Token.RefreshTokenDuration)
 
@@ -180,13 +180,13 @@ func (s *AuthService) GenerateRefreshToken(user types.User) (*types.TokenResult,
 		return nil, err
 	}
 
-	return &types.TokenResult{
+	return &model.TokenResult{
 		Token:     token.V4Sign(privateKey, nil),
 		ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (s *AuthService) VerifyRefreshToken(tokenString string) (*types.RefreshTokenPayload, error) {
+func (s *AuthService) VerifyRefreshToken(tokenString string) (*model.RefreshTokenPayload, error) {
 	key, err := paseto.NewV4AsymmetricPublicKeyFromBytes(s.config.Security.Token.RefreshTokenPublicKey)
 	if err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func (s *AuthService) VerifyRefreshToken(tokenString string) (*types.RefreshToke
 	if err != nil {
 		return nil, err
 	}
-	payload, err := encoding.UnmarshalJSON[*types.RefreshTokenPayload](token.ClaimsJSON())
+	payload, err := encoding.UnmarshalJSON[*model.RefreshTokenPayload](token.ClaimsJSON())
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func (s *AuthService) VerifyRefreshToken(tokenString string) (*types.RefreshToke
 	return payload, nil
 }
 
-func (s *AuthService) VerifyAccessToken(tokenString string) (*types.AccessTokenPayload, error) {
+func (s *AuthService) VerifyAccessToken(tokenString string) (*model.AccessTokenPayload, error) {
 	key, err := paseto.V4SymmetricKeyFromBytes(s.config.Security.Token.AccessTokenSecretKey)
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ func (s *AuthService) VerifyAccessToken(tokenString string) (*types.AccessTokenP
 	if err != nil {
 		return nil, err
 	}
-	payload, err := encoding.UnmarshalJSON[*types.AccessTokenPayload](token.ClaimsJSON())
+	payload, err := encoding.UnmarshalJSON[*model.AccessTokenPayload](token.ClaimsJSON())
 	if err != nil {
 		return nil, err
 	}

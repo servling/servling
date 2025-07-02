@@ -12,6 +12,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/domain"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/predicate"
 	"github.com/servling/servling/ent/service"
 	"github.com/servling/servling/ent/template"
@@ -28,6 +30,8 @@ const (
 
 	// Node types.
 	TypeApplication = "Application"
+	TypeDomain      = "Domain"
+	TypeIngress     = "Ingress"
 	TypeService     = "Service"
 	TypeTemplate    = "Template"
 	TypeUser        = "User"
@@ -882,6 +886,1274 @@ func (m *ApplicationMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Application edge %s", name)
 }
 
+// DomainMutation represents an operation that mutates the Domain nodes in the graph.
+type DomainMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *string
+	name               *string
+	certificate        *string
+	key                *string
+	cloudflare_email   *string
+	cloudflare_api_key *string
+	clearedFields      map[string]struct{}
+	ingresses          map[string]struct{}
+	removedingresses   map[string]struct{}
+	clearedingresses   bool
+	done               bool
+	oldValue           func(context.Context) (*Domain, error)
+	predicates         []predicate.Domain
+}
+
+var _ ent.Mutation = (*DomainMutation)(nil)
+
+// domainOption allows management of the mutation configuration using functional options.
+type domainOption func(*DomainMutation)
+
+// newDomainMutation creates new mutation for the Domain entity.
+func newDomainMutation(c config, op Op, opts ...domainOption) *DomainMutation {
+	m := &DomainMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeDomain,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withDomainID sets the ID field of the mutation.
+func withDomainID(id string) domainOption {
+	return func(m *DomainMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Domain
+		)
+		m.oldValue = func(ctx context.Context) (*Domain, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Domain.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withDomain sets the old Domain of the mutation.
+func withDomain(node *Domain) domainOption {
+	return func(m *DomainMutation) {
+		m.oldValue = func(context.Context) (*Domain, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m DomainMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m DomainMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Domain entities.
+func (m *DomainMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *DomainMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *DomainMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Domain.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *DomainMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *DomainMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Domain entity.
+// If the Domain object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DomainMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *DomainMutation) ResetName() {
+	m.name = nil
+}
+
+// SetCertificate sets the "certificate" field.
+func (m *DomainMutation) SetCertificate(s string) {
+	m.certificate = &s
+}
+
+// Certificate returns the value of the "certificate" field in the mutation.
+func (m *DomainMutation) Certificate() (r string, exists bool) {
+	v := m.certificate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCertificate returns the old "certificate" field's value of the Domain entity.
+// If the Domain object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DomainMutation) OldCertificate(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCertificate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCertificate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCertificate: %w", err)
+	}
+	return oldValue.Certificate, nil
+}
+
+// ClearCertificate clears the value of the "certificate" field.
+func (m *DomainMutation) ClearCertificate() {
+	m.certificate = nil
+	m.clearedFields[domain.FieldCertificate] = struct{}{}
+}
+
+// CertificateCleared returns if the "certificate" field was cleared in this mutation.
+func (m *DomainMutation) CertificateCleared() bool {
+	_, ok := m.clearedFields[domain.FieldCertificate]
+	return ok
+}
+
+// ResetCertificate resets all changes to the "certificate" field.
+func (m *DomainMutation) ResetCertificate() {
+	m.certificate = nil
+	delete(m.clearedFields, domain.FieldCertificate)
+}
+
+// SetKey sets the "key" field.
+func (m *DomainMutation) SetKey(s string) {
+	m.key = &s
+}
+
+// Key returns the value of the "key" field in the mutation.
+func (m *DomainMutation) Key() (r string, exists bool) {
+	v := m.key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKey returns the old "key" field's value of the Domain entity.
+// If the Domain object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DomainMutation) OldKey(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKey: %w", err)
+	}
+	return oldValue.Key, nil
+}
+
+// ClearKey clears the value of the "key" field.
+func (m *DomainMutation) ClearKey() {
+	m.key = nil
+	m.clearedFields[domain.FieldKey] = struct{}{}
+}
+
+// KeyCleared returns if the "key" field was cleared in this mutation.
+func (m *DomainMutation) KeyCleared() bool {
+	_, ok := m.clearedFields[domain.FieldKey]
+	return ok
+}
+
+// ResetKey resets all changes to the "key" field.
+func (m *DomainMutation) ResetKey() {
+	m.key = nil
+	delete(m.clearedFields, domain.FieldKey)
+}
+
+// SetCloudflareEmail sets the "cloudflare_email" field.
+func (m *DomainMutation) SetCloudflareEmail(s string) {
+	m.cloudflare_email = &s
+}
+
+// CloudflareEmail returns the value of the "cloudflare_email" field in the mutation.
+func (m *DomainMutation) CloudflareEmail() (r string, exists bool) {
+	v := m.cloudflare_email
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCloudflareEmail returns the old "cloudflare_email" field's value of the Domain entity.
+// If the Domain object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DomainMutation) OldCloudflareEmail(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCloudflareEmail is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCloudflareEmail requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCloudflareEmail: %w", err)
+	}
+	return oldValue.CloudflareEmail, nil
+}
+
+// ClearCloudflareEmail clears the value of the "cloudflare_email" field.
+func (m *DomainMutation) ClearCloudflareEmail() {
+	m.cloudflare_email = nil
+	m.clearedFields[domain.FieldCloudflareEmail] = struct{}{}
+}
+
+// CloudflareEmailCleared returns if the "cloudflare_email" field was cleared in this mutation.
+func (m *DomainMutation) CloudflareEmailCleared() bool {
+	_, ok := m.clearedFields[domain.FieldCloudflareEmail]
+	return ok
+}
+
+// ResetCloudflareEmail resets all changes to the "cloudflare_email" field.
+func (m *DomainMutation) ResetCloudflareEmail() {
+	m.cloudflare_email = nil
+	delete(m.clearedFields, domain.FieldCloudflareEmail)
+}
+
+// SetCloudflareAPIKey sets the "cloudflare_api_key" field.
+func (m *DomainMutation) SetCloudflareAPIKey(s string) {
+	m.cloudflare_api_key = &s
+}
+
+// CloudflareAPIKey returns the value of the "cloudflare_api_key" field in the mutation.
+func (m *DomainMutation) CloudflareAPIKey() (r string, exists bool) {
+	v := m.cloudflare_api_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCloudflareAPIKey returns the old "cloudflare_api_key" field's value of the Domain entity.
+// If the Domain object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DomainMutation) OldCloudflareAPIKey(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCloudflareAPIKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCloudflareAPIKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCloudflareAPIKey: %w", err)
+	}
+	return oldValue.CloudflareAPIKey, nil
+}
+
+// ClearCloudflareAPIKey clears the value of the "cloudflare_api_key" field.
+func (m *DomainMutation) ClearCloudflareAPIKey() {
+	m.cloudflare_api_key = nil
+	m.clearedFields[domain.FieldCloudflareAPIKey] = struct{}{}
+}
+
+// CloudflareAPIKeyCleared returns if the "cloudflare_api_key" field was cleared in this mutation.
+func (m *DomainMutation) CloudflareAPIKeyCleared() bool {
+	_, ok := m.clearedFields[domain.FieldCloudflareAPIKey]
+	return ok
+}
+
+// ResetCloudflareAPIKey resets all changes to the "cloudflare_api_key" field.
+func (m *DomainMutation) ResetCloudflareAPIKey() {
+	m.cloudflare_api_key = nil
+	delete(m.clearedFields, domain.FieldCloudflareAPIKey)
+}
+
+// AddIngressIDs adds the "ingresses" edge to the Ingress entity by ids.
+func (m *DomainMutation) AddIngressIDs(ids ...string) {
+	if m.ingresses == nil {
+		m.ingresses = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.ingresses[ids[i]] = struct{}{}
+	}
+}
+
+// ClearIngresses clears the "ingresses" edge to the Ingress entity.
+func (m *DomainMutation) ClearIngresses() {
+	m.clearedingresses = true
+}
+
+// IngressesCleared reports if the "ingresses" edge to the Ingress entity was cleared.
+func (m *DomainMutation) IngressesCleared() bool {
+	return m.clearedingresses
+}
+
+// RemoveIngressIDs removes the "ingresses" edge to the Ingress entity by IDs.
+func (m *DomainMutation) RemoveIngressIDs(ids ...string) {
+	if m.removedingresses == nil {
+		m.removedingresses = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.ingresses, ids[i])
+		m.removedingresses[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedIngresses returns the removed IDs of the "ingresses" edge to the Ingress entity.
+func (m *DomainMutation) RemovedIngressesIDs() (ids []string) {
+	for id := range m.removedingresses {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// IngressesIDs returns the "ingresses" edge IDs in the mutation.
+func (m *DomainMutation) IngressesIDs() (ids []string) {
+	for id := range m.ingresses {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetIngresses resets all changes to the "ingresses" edge.
+func (m *DomainMutation) ResetIngresses() {
+	m.ingresses = nil
+	m.clearedingresses = false
+	m.removedingresses = nil
+}
+
+// Where appends a list predicates to the DomainMutation builder.
+func (m *DomainMutation) Where(ps ...predicate.Domain) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the DomainMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DomainMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Domain, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *DomainMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DomainMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Domain).
+func (m *DomainMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *DomainMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.name != nil {
+		fields = append(fields, domain.FieldName)
+	}
+	if m.certificate != nil {
+		fields = append(fields, domain.FieldCertificate)
+	}
+	if m.key != nil {
+		fields = append(fields, domain.FieldKey)
+	}
+	if m.cloudflare_email != nil {
+		fields = append(fields, domain.FieldCloudflareEmail)
+	}
+	if m.cloudflare_api_key != nil {
+		fields = append(fields, domain.FieldCloudflareAPIKey)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *DomainMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case domain.FieldName:
+		return m.Name()
+	case domain.FieldCertificate:
+		return m.Certificate()
+	case domain.FieldKey:
+		return m.Key()
+	case domain.FieldCloudflareEmail:
+		return m.CloudflareEmail()
+	case domain.FieldCloudflareAPIKey:
+		return m.CloudflareAPIKey()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *DomainMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case domain.FieldName:
+		return m.OldName(ctx)
+	case domain.FieldCertificate:
+		return m.OldCertificate(ctx)
+	case domain.FieldKey:
+		return m.OldKey(ctx)
+	case domain.FieldCloudflareEmail:
+		return m.OldCloudflareEmail(ctx)
+	case domain.FieldCloudflareAPIKey:
+		return m.OldCloudflareAPIKey(ctx)
+	}
+	return nil, fmt.Errorf("unknown Domain field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DomainMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case domain.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case domain.FieldCertificate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCertificate(v)
+		return nil
+	case domain.FieldKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKey(v)
+		return nil
+	case domain.FieldCloudflareEmail:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCloudflareEmail(v)
+		return nil
+	case domain.FieldCloudflareAPIKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCloudflareAPIKey(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Domain field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *DomainMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *DomainMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DomainMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Domain numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *DomainMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(domain.FieldCertificate) {
+		fields = append(fields, domain.FieldCertificate)
+	}
+	if m.FieldCleared(domain.FieldKey) {
+		fields = append(fields, domain.FieldKey)
+	}
+	if m.FieldCleared(domain.FieldCloudflareEmail) {
+		fields = append(fields, domain.FieldCloudflareEmail)
+	}
+	if m.FieldCleared(domain.FieldCloudflareAPIKey) {
+		fields = append(fields, domain.FieldCloudflareAPIKey)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *DomainMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *DomainMutation) ClearField(name string) error {
+	switch name {
+	case domain.FieldCertificate:
+		m.ClearCertificate()
+		return nil
+	case domain.FieldKey:
+		m.ClearKey()
+		return nil
+	case domain.FieldCloudflareEmail:
+		m.ClearCloudflareEmail()
+		return nil
+	case domain.FieldCloudflareAPIKey:
+		m.ClearCloudflareAPIKey()
+		return nil
+	}
+	return fmt.Errorf("unknown Domain nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *DomainMutation) ResetField(name string) error {
+	switch name {
+	case domain.FieldName:
+		m.ResetName()
+		return nil
+	case domain.FieldCertificate:
+		m.ResetCertificate()
+		return nil
+	case domain.FieldKey:
+		m.ResetKey()
+		return nil
+	case domain.FieldCloudflareEmail:
+		m.ResetCloudflareEmail()
+		return nil
+	case domain.FieldCloudflareAPIKey:
+		m.ResetCloudflareAPIKey()
+		return nil
+	}
+	return fmt.Errorf("unknown Domain field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *DomainMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.ingresses != nil {
+		edges = append(edges, domain.EdgeIngresses)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *DomainMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case domain.EdgeIngresses:
+		ids := make([]ent.Value, 0, len(m.ingresses))
+		for id := range m.ingresses {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *DomainMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedingresses != nil {
+		edges = append(edges, domain.EdgeIngresses)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *DomainMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case domain.EdgeIngresses:
+		ids := make([]ent.Value, 0, len(m.removedingresses))
+		for id := range m.removedingresses {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *DomainMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedingresses {
+		edges = append(edges, domain.EdgeIngresses)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *DomainMutation) EdgeCleared(name string) bool {
+	switch name {
+	case domain.EdgeIngresses:
+		return m.clearedingresses
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *DomainMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Domain unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *DomainMutation) ResetEdge(name string) error {
+	switch name {
+	case domain.EdgeIngresses:
+		m.ResetIngresses()
+		return nil
+	}
+	return fmt.Errorf("unknown Domain edge %s", name)
+}
+
+// IngressMutation represents an operation that mutates the Ingress nodes in the graph.
+type IngressMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	name           *string
+	target_port    *uint16
+	addtarget_port *int16
+	clearedFields  map[string]struct{}
+	domain         *string
+	cleareddomain  bool
+	service        *string
+	clearedservice bool
+	done           bool
+	oldValue       func(context.Context) (*Ingress, error)
+	predicates     []predicate.Ingress
+}
+
+var _ ent.Mutation = (*IngressMutation)(nil)
+
+// ingressOption allows management of the mutation configuration using functional options.
+type ingressOption func(*IngressMutation)
+
+// newIngressMutation creates new mutation for the Ingress entity.
+func newIngressMutation(c config, op Op, opts ...ingressOption) *IngressMutation {
+	m := &IngressMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIngress,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIngressID sets the ID field of the mutation.
+func withIngressID(id string) ingressOption {
+	return func(m *IngressMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Ingress
+		)
+		m.oldValue = func(ctx context.Context) (*Ingress, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Ingress.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIngress sets the old Ingress of the mutation.
+func withIngress(node *Ingress) ingressOption {
+	return func(m *IngressMutation) {
+		m.oldValue = func(context.Context) (*Ingress, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IngressMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IngressMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Ingress entities.
+func (m *IngressMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IngressMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IngressMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Ingress.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *IngressMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *IngressMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Ingress entity.
+// If the Ingress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IngressMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *IngressMutation) ResetName() {
+	m.name = nil
+}
+
+// SetTargetPort sets the "target_port" field.
+func (m *IngressMutation) SetTargetPort(u uint16) {
+	m.target_port = &u
+	m.addtarget_port = nil
+}
+
+// TargetPort returns the value of the "target_port" field in the mutation.
+func (m *IngressMutation) TargetPort() (r uint16, exists bool) {
+	v := m.target_port
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetPort returns the old "target_port" field's value of the Ingress entity.
+// If the Ingress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IngressMutation) OldTargetPort(ctx context.Context) (v uint16, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetPort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetPort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetPort: %w", err)
+	}
+	return oldValue.TargetPort, nil
+}
+
+// AddTargetPort adds u to the "target_port" field.
+func (m *IngressMutation) AddTargetPort(u int16) {
+	if m.addtarget_port != nil {
+		*m.addtarget_port += u
+	} else {
+		m.addtarget_port = &u
+	}
+}
+
+// AddedTargetPort returns the value that was added to the "target_port" field in this mutation.
+func (m *IngressMutation) AddedTargetPort() (r int16, exists bool) {
+	v := m.addtarget_port
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTargetPort resets all changes to the "target_port" field.
+func (m *IngressMutation) ResetTargetPort() {
+	m.target_port = nil
+	m.addtarget_port = nil
+}
+
+// SetDomainID sets the "domain" edge to the Domain entity by id.
+func (m *IngressMutation) SetDomainID(id string) {
+	m.domain = &id
+}
+
+// ClearDomain clears the "domain" edge to the Domain entity.
+func (m *IngressMutation) ClearDomain() {
+	m.cleareddomain = true
+}
+
+// DomainCleared reports if the "domain" edge to the Domain entity was cleared.
+func (m *IngressMutation) DomainCleared() bool {
+	return m.cleareddomain
+}
+
+// DomainID returns the "domain" edge ID in the mutation.
+func (m *IngressMutation) DomainID() (id string, exists bool) {
+	if m.domain != nil {
+		return *m.domain, true
+	}
+	return
+}
+
+// DomainIDs returns the "domain" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// DomainID instead. It exists only for internal usage by the builders.
+func (m *IngressMutation) DomainIDs() (ids []string) {
+	if id := m.domain; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetDomain resets all changes to the "domain" edge.
+func (m *IngressMutation) ResetDomain() {
+	m.domain = nil
+	m.cleareddomain = false
+}
+
+// SetServiceID sets the "service" edge to the Service entity by id.
+func (m *IngressMutation) SetServiceID(id string) {
+	m.service = &id
+}
+
+// ClearService clears the "service" edge to the Service entity.
+func (m *IngressMutation) ClearService() {
+	m.clearedservice = true
+}
+
+// ServiceCleared reports if the "service" edge to the Service entity was cleared.
+func (m *IngressMutation) ServiceCleared() bool {
+	return m.clearedservice
+}
+
+// ServiceID returns the "service" edge ID in the mutation.
+func (m *IngressMutation) ServiceID() (id string, exists bool) {
+	if m.service != nil {
+		return *m.service, true
+	}
+	return
+}
+
+// ServiceIDs returns the "service" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServiceID instead. It exists only for internal usage by the builders.
+func (m *IngressMutation) ServiceIDs() (ids []string) {
+	if id := m.service; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetService resets all changes to the "service" edge.
+func (m *IngressMutation) ResetService() {
+	m.service = nil
+	m.clearedservice = false
+}
+
+// Where appends a list predicates to the IngressMutation builder.
+func (m *IngressMutation) Where(ps ...predicate.Ingress) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IngressMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IngressMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Ingress, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IngressMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IngressMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Ingress).
+func (m *IngressMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IngressMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.name != nil {
+		fields = append(fields, ingress.FieldName)
+	}
+	if m.target_port != nil {
+		fields = append(fields, ingress.FieldTargetPort)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IngressMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ingress.FieldName:
+		return m.Name()
+	case ingress.FieldTargetPort:
+		return m.TargetPort()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IngressMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ingress.FieldName:
+		return m.OldName(ctx)
+	case ingress.FieldTargetPort:
+		return m.OldTargetPort(ctx)
+	}
+	return nil, fmt.Errorf("unknown Ingress field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IngressMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ingress.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case ingress.FieldTargetPort:
+		v, ok := value.(uint16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetPort(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Ingress field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IngressMutation) AddedFields() []string {
+	var fields []string
+	if m.addtarget_port != nil {
+		fields = append(fields, ingress.FieldTargetPort)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IngressMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ingress.FieldTargetPort:
+		return m.AddedTargetPort()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IngressMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ingress.FieldTargetPort:
+		v, ok := value.(int16)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTargetPort(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Ingress numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IngressMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IngressMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IngressMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Ingress nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IngressMutation) ResetField(name string) error {
+	switch name {
+	case ingress.FieldName:
+		m.ResetName()
+		return nil
+	case ingress.FieldTargetPort:
+		m.ResetTargetPort()
+		return nil
+	}
+	return fmt.Errorf("unknown Ingress field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IngressMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.domain != nil {
+		edges = append(edges, ingress.EdgeDomain)
+	}
+	if m.service != nil {
+		edges = append(edges, ingress.EdgeService)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IngressMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ingress.EdgeDomain:
+		if id := m.domain; id != nil {
+			return []ent.Value{*id}
+		}
+	case ingress.EdgeService:
+		if id := m.service; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IngressMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IngressMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IngressMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.cleareddomain {
+		edges = append(edges, ingress.EdgeDomain)
+	}
+	if m.clearedservice {
+		edges = append(edges, ingress.EdgeService)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IngressMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ingress.EdgeDomain:
+		return m.cleareddomain
+	case ingress.EdgeService:
+		return m.clearedservice
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IngressMutation) ClearEdge(name string) error {
+	switch name {
+	case ingress.EdgeDomain:
+		m.ClearDomain()
+		return nil
+	case ingress.EdgeService:
+		m.ClearService()
+		return nil
+	}
+	return fmt.Errorf("unknown Ingress unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IngressMutation) ResetEdge(name string) error {
+	switch name {
+	case ingress.EdgeDomain:
+		m.ResetDomain()
+		return nil
+	case ingress.EdgeService:
+		m.ResetService()
+		return nil
+	}
+	return fmt.Errorf("unknown Ingress edge %s", name)
+}
+
 // ServiceMutation represents an operation that mutates the Service nodes in the graph.
 type ServiceMutation struct {
 	config
@@ -902,6 +2174,9 @@ type ServiceMutation struct {
 	clearedFields      map[string]struct{}
 	application        *string
 	clearedapplication bool
+	ingresses          map[string]struct{}
+	removedingresses   map[string]struct{}
+	clearedingresses   bool
 	done               bool
 	oldValue           func(context.Context) (*Service, error)
 	predicates         []predicate.Service
@@ -1511,6 +2786,60 @@ func (m *ServiceMutation) ResetApplication() {
 	m.clearedapplication = false
 }
 
+// AddIngressIDs adds the "ingresses" edge to the Ingress entity by ids.
+func (m *ServiceMutation) AddIngressIDs(ids ...string) {
+	if m.ingresses == nil {
+		m.ingresses = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.ingresses[ids[i]] = struct{}{}
+	}
+}
+
+// ClearIngresses clears the "ingresses" edge to the Ingress entity.
+func (m *ServiceMutation) ClearIngresses() {
+	m.clearedingresses = true
+}
+
+// IngressesCleared reports if the "ingresses" edge to the Ingress entity was cleared.
+func (m *ServiceMutation) IngressesCleared() bool {
+	return m.clearedingresses
+}
+
+// RemoveIngressIDs removes the "ingresses" edge to the Ingress entity by IDs.
+func (m *ServiceMutation) RemoveIngressIDs(ids ...string) {
+	if m.removedingresses == nil {
+		m.removedingresses = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.ingresses, ids[i])
+		m.removedingresses[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedIngresses returns the removed IDs of the "ingresses" edge to the Ingress entity.
+func (m *ServiceMutation) RemovedIngressesIDs() (ids []string) {
+	for id := range m.removedingresses {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// IngressesIDs returns the "ingresses" edge IDs in the mutation.
+func (m *ServiceMutation) IngressesIDs() (ids []string) {
+	for id := range m.ingresses {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetIngresses resets all changes to the "ingresses" edge.
+func (m *ServiceMutation) ResetIngresses() {
+	m.ingresses = nil
+	m.clearedingresses = false
+	m.removedingresses = nil
+}
+
 // Where appends a list predicates to the ServiceMutation builder.
 func (m *ServiceMutation) Where(ps ...predicate.Service) {
 	m.predicates = append(m.predicates, ps...)
@@ -1847,9 +3176,12 @@ func (m *ServiceMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ServiceMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.application != nil {
 		edges = append(edges, service.EdgeApplication)
+	}
+	if m.ingresses != nil {
+		edges = append(edges, service.EdgeIngresses)
 	}
 	return edges
 }
@@ -1862,27 +3194,47 @@ func (m *ServiceMutation) AddedIDs(name string) []ent.Value {
 		if id := m.application; id != nil {
 			return []ent.Value{*id}
 		}
+	case service.EdgeIngresses:
+		ids := make([]ent.Value, 0, len(m.ingresses))
+		for id := range m.ingresses {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ServiceMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
+	if m.removedingresses != nil {
+		edges = append(edges, service.EdgeIngresses)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *ServiceMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case service.EdgeIngresses:
+		ids := make([]ent.Value, 0, len(m.removedingresses))
+		for id := range m.removedingresses {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ServiceMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedapplication {
 		edges = append(edges, service.EdgeApplication)
+	}
+	if m.clearedingresses {
+		edges = append(edges, service.EdgeIngresses)
 	}
 	return edges
 }
@@ -1893,6 +3245,8 @@ func (m *ServiceMutation) EdgeCleared(name string) bool {
 	switch name {
 	case service.EdgeApplication:
 		return m.clearedapplication
+	case service.EdgeIngresses:
+		return m.clearedingresses
 	}
 	return false
 }
@@ -1914,6 +3268,9 @@ func (m *ServiceMutation) ResetEdge(name string) error {
 	switch name {
 	case service.EdgeApplication:
 		m.ResetApplication()
+		return nil
+	case service.EdgeIngresses:
+		m.ResetIngresses()
 		return nil
 	}
 	return fmt.Errorf("unknown Service edge %s", name)

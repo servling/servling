@@ -4,7 +4,7 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 	"github.com/servling/servling/pkg/domain/auth"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 )
 
 type AuthController struct {
@@ -31,7 +31,7 @@ type RegisterRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*types.RegisterResult, error) {
+func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*model.RegisterResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*types.LoginResult, error) {
+func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*model.LoginResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
-func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*types.RefreshResult, error) {
+func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*model.RefreshResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
@@ -64,12 +64,12 @@ func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*types.
 	return ac.authService.Refresh(c, body.RefreshToken)
 }
 
-func (ac *AuthController) Invalidate(c fuego.ContextNoBody) (*types.InvalidateResult, error) {
+func (ac *AuthController) Invalidate(c fuego.ContextNoBody) (*model.InvalidateResult, error) {
 	err := ac.authService.Invalidate(c)
 	if err != nil {
 		return nil, err
 	}
-	return &types.InvalidateResult{
+	return &model.InvalidateResult{
 		Ok: true,
 	}, nil
 }

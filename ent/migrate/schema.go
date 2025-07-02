@@ -11,7 +11,7 @@ var (
 	// ApplicationsColumns holds the columns for the "applications" table.
 	ApplicationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
-		{Name: "name", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString, Unique: true},
 		{Name: "description", Type: field.TypeString},
 		{Name: "image_url", Type: field.TypeString, Nullable: true},
 		{Name: "status", Type: field.TypeString, Default: "stopped"},
@@ -34,11 +34,54 @@ var (
 			},
 		},
 	}
+	// DomainsColumns holds the columns for the "domains" table.
+	DomainsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "name", Type: field.TypeString, Unique: true},
+		{Name: "certificate", Type: field.TypeString, Nullable: true},
+		{Name: "key", Type: field.TypeString, Nullable: true},
+		{Name: "cloudflare_email", Type: field.TypeString, Nullable: true},
+		{Name: "cloudflare_api_key", Type: field.TypeString, Nullable: true},
+	}
+	// DomainsTable holds the schema information for the "domains" table.
+	DomainsTable = &schema.Table{
+		Name:       "domains",
+		Columns:    DomainsColumns,
+		PrimaryKey: []*schema.Column{DomainsColumns[0]},
+	}
+	// IngressesColumns holds the columns for the "ingresses" table.
+	IngressesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "name", Type: field.TypeString, Unique: true},
+		{Name: "target_port", Type: field.TypeUint16},
+		{Name: "domain_ingresses", Type: field.TypeString, Nullable: true},
+		{Name: "service_ingresses", Type: field.TypeString, Nullable: true},
+	}
+	// IngressesTable holds the schema information for the "ingresses" table.
+	IngressesTable = &schema.Table{
+		Name:       "ingresses",
+		Columns:    IngressesColumns,
+		PrimaryKey: []*schema.Column{IngressesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ingresses_domains_ingresses",
+				Columns:    []*schema.Column{IngressesColumns[3]},
+				RefColumns: []*schema.Column{DomainsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "ingresses_services_ingresses",
+				Columns:    []*schema.Column{IngressesColumns[4]},
+				RefColumns: []*schema.Column{ServicesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
 	// ServicesColumns holds the columns for the "services" table.
 	ServicesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
-		{Name: "name", Type: field.TypeString},
-		{Name: "service_name", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString, Unique: true},
+		{Name: "service_name", Type: field.TypeString, Unique: true},
 		{Name: "image", Type: field.TypeString},
 		{Name: "ports", Type: field.TypeJSON, Nullable: true},
 		{Name: "environment", Type: field.TypeJSON, Nullable: true},
@@ -67,7 +110,7 @@ var (
 	// TemplatesColumns holds the columns for the "templates" table.
 	TemplatesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
-		{Name: "name", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString, Unique: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
@@ -95,6 +138,8 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		ApplicationsTable,
+		DomainsTable,
+		IngressesTable,
 		ServicesTable,
 		TemplatesTable,
 		UsersTable,
@@ -103,5 +148,7 @@ var (
 
 func init() {
 	ApplicationsTable.ForeignKeys[0].RefTable = TemplatesTable
+	IngressesTable.ForeignKeys[0].RefTable = DomainsTable
+	IngressesTable.ForeignKeys[1].RefTable = ServicesTable
 	ServicesTable.ForeignKeys[0].RefTable = ApplicationsTable
 }

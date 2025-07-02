@@ -38,6 +38,8 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// EdgeApplication holds the string denoting the application edge name in mutations.
 	EdgeApplication = "application"
+	// EdgeIngresses holds the string denoting the ingresses edge name in mutations.
+	EdgeIngresses = "ingresses"
 	// Table holds the table name of the service in the database.
 	Table = "services"
 	// ApplicationTable is the table that holds the application relation/edge.
@@ -47,6 +49,13 @@ const (
 	ApplicationInverseTable = "applications"
 	// ApplicationColumn is the table column denoting the application relation/edge.
 	ApplicationColumn = "application_services"
+	// IngressesTable is the table that holds the ingresses relation/edge.
+	IngressesTable = "ingresses"
+	// IngressesInverseTable is the table name for the Ingress entity.
+	// It exists in this package in order to avoid circular dependency with the "ingress" package.
+	IngressesInverseTable = "ingresses"
+	// IngressesColumn is the table column denoting the ingresses relation/edge.
+	IngressesColumn = "service_ingresses"
 )
 
 // Columns holds all SQL columns for service fields.
@@ -153,10 +162,31 @@ func ByApplicationField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newApplicationStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByIngressesCount orders the results by ingresses count.
+func ByIngressesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newIngressesStep(), opts...)
+	}
+}
+
+// ByIngresses orders the results by ingresses terms.
+func ByIngresses(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newIngressesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newApplicationStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ApplicationInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, ApplicationTable, ApplicationColumn),
+	)
+}
+func newIngressesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(IngressesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, IngressesTable, IngressesColumn),
 	)
 }

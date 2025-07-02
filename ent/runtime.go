@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/domain"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/schema"
 	"github.com/servling/servling/ent/service"
 	"github.com/servling/servling/ent/template"
@@ -36,6 +38,18 @@ func init() {
 	applicationDescID := applicationFields[0].Descriptor()
 	// application.DefaultID holds the default value on creation for the id field.
 	application.DefaultID = applicationDescID.Default.(func() string)
+	domainFields := schema.Domain{}.Fields()
+	_ = domainFields
+	// domainDescID is the schema descriptor for id field.
+	domainDescID := domainFields[0].Descriptor()
+	// domain.DefaultID holds the default value on creation for the id field.
+	domain.DefaultID = domainDescID.Default.(func() string)
+	ingressFields := schema.Ingress{}.Fields()
+	_ = ingressFields
+	// ingressDescID is the schema descriptor for id field.
+	ingressDescID := ingressFields[0].Descriptor()
+	// ingress.DefaultID holds the default value on creation for the id field.
+	ingress.DefaultID = ingressDescID.Default.(func() string)
 	serviceFields := schema.Service{}.Fields()
 	_ = serviceFields
 	// serviceDescStatus is the schema descriptor for status field.

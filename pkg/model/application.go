@@ -1,9 +1,8 @@
-package types
+package model
 
 import (
 	"time"
 
-	"dario.lol/gotils/pkg/slice"
 	"github.com/servling/servling/ent"
 )
 
@@ -32,7 +31,7 @@ type Application struct {
 	ID          string        `json:"id" validate:"required"`
 	Name        string        `json:"name" validate:"required"`
 	Description string        `json:"description" validate:"required"`
-	Services    []Service     `json:"services" validate:"required"`
+	Services    []*Service    `json:"services" validate:"required"`
 	Status      ServiceStatus `json:"status" validate:"required"  enum:"running,stopped,starting,stopping,error"`
 	Error       *string       `json:"error"`
 	CreatedAt   time.Time     `json:"createdAt" validate:"required"`
@@ -78,34 +77,73 @@ type Service struct {
 	Labels      map[string]string `json:"labels" validate:"required"`
 	Status      ServiceStatus     `json:"status" validate:"required" enum:"running,stopped,starting,stopping,error"`
 	Error       *string           `json:"error"`
+	Ingresses   []*Ingress        `json:"ingresses" validate:"required"`
+	Application *Application      `json:"-" validate:"required"`
 	CreatedAt   time.Time         `json:"createdAt" validate:"required"`
 	UpdatedAt   time.Time         `json:"updatedAt" validate:"required"`
 }
 
-func ServiceFromEnt(service *ent.Service) *Service {
-	return &Service{
-		ID:          service.ID,
-		Name:        service.Name,
-		ServiceName: service.ServiceName,
-		Image:       service.Image,
-		Environment: service.Environment,
-		Ports:       service.Ports,
-		Labels:      service.Labels,
-		Status:      ServiceStatus(service.Status),
-		Error:       service.Error,
-		CreatedAt:   service.CreatedAt,
-		UpdatedAt:   service.UpdatedAt,
-	}
-}
-
 func ApplicationFromEnt(app *ent.Application) *Application {
-	return &Application{
+	if app == nil {
+		return nil
+	}
+	application := &Application{
 		ID:        app.ID,
 		Name:      app.Name,
-		Services:  slice.FromPtr(slice.Map(app.Edges.Services, ServiceFromEnt)),
 		Status:    ServiceStatus(app.Status),
 		Error:     app.Error,
 		CreatedAt: app.CreatedAt,
 		UpdatedAt: app.UpdatedAt,
 	}
+
+	if app.Edges.Services != nil {
+		application.Services = make([]*Service, len(app.Edges.Services))
+		for i, serviceEnt := range app.Edges.Services {
+			application.Services[i] = serviceFromParent(serviceEnt, application)
+		}
+	}
+
+	return application
+}
+
+func ServiceFromEnt(s *ent.Service) *Service {
+	if s == nil {
+		return nil
+	}
+	return serviceFromParent(s, nil)
+}
+
+func serviceFromParent(s *ent.Service, parentApp *Application) *Service {
+	if s == nil {
+		return nil
+	}
+
+	service := &Service{
+		ID:          s.ID,
+		Name:        s.Name,
+		ServiceName: s.ServiceName,
+		Image:       s.Image,
+		Environment: s.Environment,
+		Ports:       s.Ports,
+		Labels:      s.Labels,
+		Status:      ServiceStatus(s.Status),
+		Error:       s.Error,
+		CreatedAt:   s.CreatedAt,
+		UpdatedAt:   s.UpdatedAt,
+	}
+
+	if parentApp != nil {
+		service.Application = parentApp
+	} else if s.Edges.Application != nil {
+		service.Application = ApplicationFromEnt(s.Edges.Application)
+	}
+
+	if s.Edges.Ingresses != nil {
+		service.Ingresses = make([]*Ingress, len(s.Edges.Ingresses))
+		for i, ingressEnt := range s.Edges.Ingresses {
+			service.Ingresses[i] = ingressFromParents(ingressEnt, nil, service)
+		}
+	}
+
+	return service
 }

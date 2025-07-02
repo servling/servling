@@ -14,6 +14,10 @@ type Tx struct {
 	config
 	// Application is the client for interacting with the Application builders.
 	Application *ApplicationClient
+	// Domain is the client for interacting with the Domain builders.
+	Domain *DomainClient
+	// Ingress is the client for interacting with the Ingress builders.
+	Ingress *IngressClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
 	// Template is the client for interacting with the Template builders.
@@ -152,6 +156,8 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Application = NewApplicationClient(tx.config)
+	tx.Domain = NewDomainClient(tx.config)
+	tx.Ingress = NewIngressClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
 	tx.Template = NewTemplateClient(tx.config)
 	tx.User = NewUserClient(tx.config)

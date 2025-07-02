@@ -9,6 +9,12 @@ import (
 // Application is the predicate function for application builders.
 type Application func(*sql.Selector)
 
+// Domain is the predicate function for domain builders.
+type Domain func(*sql.Selector)
+
+// Ingress is the predicate function for ingress builders.
+type Ingress func(*sql.Selector)
+
 // Service is the predicate function for service builders.
 type Service func(*sql.Selector)
 

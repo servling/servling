@@ -648,6 +648,29 @@ func HasApplicationWith(preds ...predicate.Application) predicate.Service {
 	})
 }
 
+// HasIngresses applies the HasEdge predicate on the "ingresses" edge.
+func HasIngresses() predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, IngressesTable, IngressesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasIngressesWith applies the HasEdge predicate on the "ingresses" edge with a given conditions (other predicates).
+func HasIngressesWith(preds ...predicate.Ingress) predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := newIngressesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Service) predicate.Service {
 	return predicate.Service(sql.AndPredicates(predicates...))

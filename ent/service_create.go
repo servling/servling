@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/service"
 )
 
@@ -19,6 +22,7 @@ type ServiceCreate struct {
 	config
 	mutation *ServiceMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetName sets the "name" field.
@@ -160,6 +164,21 @@ func (sc *ServiceCreate) SetApplication(a *Application) *ServiceCreate {
 	return sc.SetApplicationID(a.ID)
 }
 
+// AddIngressIDs adds the "ingresses" edge to the Ingress entity by IDs.
+func (sc *ServiceCreate) AddIngressIDs(ids ...string) *ServiceCreate {
+	sc.mutation.AddIngressIDs(ids...)
+	return sc
+}
+
+// AddIngresses adds the "ingresses" edges to the Ingress entity.
+func (sc *ServiceCreate) AddIngresses(i ...*Ingress) *ServiceCreate {
+	ids := make([]string, len(i))
+	for j := range i {
+		ids[j] = i[j].ID
+	}
+	return sc.AddIngressIDs(ids...)
+}
+
 // Mutation returns the ServiceMutation object of the builder.
 func (sc *ServiceCreate) Mutation() *ServiceMutation {
 	return sc.mutation
@@ -264,6 +283,7 @@ func (sc *ServiceCreate) createSpec() (*Service, *sqlgraph.CreateSpec) {
 		_node = &Service{config: sc.config}
 		_spec = sqlgraph.NewCreateSpec(service.Table, sqlgraph.NewFieldSpec(service.FieldID, field.TypeString))
 	)
+	_spec.OnConflict = sc.conflict
 	if id, ok := sc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
@@ -329,7 +349,486 @@ func (sc *ServiceCreate) createSpec() (*Service, *sqlgraph.CreateSpec) {
 		_node.application_services = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := sc.mutation.IngressesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Service.Create().
+//		SetName(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.ServiceUpsert) {
+//			SetName(v+v).
+//		}).
+//		Exec(ctx)
+func (sc *ServiceCreate) OnConflict(opts ...sql.ConflictOption) *ServiceUpsertOne {
+	sc.conflict = opts
+	return &ServiceUpsertOne{
+		create: sc,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (sc *ServiceCreate) OnConflictColumns(columns ...string) *ServiceUpsertOne {
+	sc.conflict = append(sc.conflict, sql.ConflictColumns(columns...))
+	return &ServiceUpsertOne{
+		create: sc,
+	}
+}
+
+type (
+	// ServiceUpsertOne is the builder for "upsert"-ing
+	//  one Service node.
+	ServiceUpsertOne struct {
+		create *ServiceCreate
+	}
+
+	// ServiceUpsert is the "OnConflict" setter.
+	ServiceUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetName sets the "name" field.
+func (u *ServiceUpsert) SetName(v string) *ServiceUpsert {
+	u.Set(service.FieldName, v)
+	return u
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateName() *ServiceUpsert {
+	u.SetExcluded(service.FieldName)
+	return u
+}
+
+// SetServiceName sets the "service_name" field.
+func (u *ServiceUpsert) SetServiceName(v string) *ServiceUpsert {
+	u.Set(service.FieldServiceName, v)
+	return u
+}
+
+// UpdateServiceName sets the "service_name" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateServiceName() *ServiceUpsert {
+	u.SetExcluded(service.FieldServiceName)
+	return u
+}
+
+// SetImage sets the "image" field.
+func (u *ServiceUpsert) SetImage(v string) *ServiceUpsert {
+	u.Set(service.FieldImage, v)
+	return u
+}
+
+// UpdateImage sets the "image" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateImage() *ServiceUpsert {
+	u.SetExcluded(service.FieldImage)
+	return u
+}
+
+// SetPorts sets the "ports" field.
+func (u *ServiceUpsert) SetPorts(v map[string]string) *ServiceUpsert {
+	u.Set(service.FieldPorts, v)
+	return u
+}
+
+// UpdatePorts sets the "ports" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdatePorts() *ServiceUpsert {
+	u.SetExcluded(service.FieldPorts)
+	return u
+}
+
+// ClearPorts clears the value of the "ports" field.
+func (u *ServiceUpsert) ClearPorts() *ServiceUpsert {
+	u.SetNull(service.FieldPorts)
+	return u
+}
+
+// SetEnvironment sets the "environment" field.
+func (u *ServiceUpsert) SetEnvironment(v map[string]string) *ServiceUpsert {
+	u.Set(service.FieldEnvironment, v)
+	return u
+}
+
+// UpdateEnvironment sets the "environment" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateEnvironment() *ServiceUpsert {
+	u.SetExcluded(service.FieldEnvironment)
+	return u
+}
+
+// ClearEnvironment clears the value of the "environment" field.
+func (u *ServiceUpsert) ClearEnvironment() *ServiceUpsert {
+	u.SetNull(service.FieldEnvironment)
+	return u
+}
+
+// SetEntrypoint sets the "entrypoint" field.
+func (u *ServiceUpsert) SetEntrypoint(v string) *ServiceUpsert {
+	u.Set(service.FieldEntrypoint, v)
+	return u
+}
+
+// UpdateEntrypoint sets the "entrypoint" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateEntrypoint() *ServiceUpsert {
+	u.SetExcluded(service.FieldEntrypoint)
+	return u
+}
+
+// ClearEntrypoint clears the value of the "entrypoint" field.
+func (u *ServiceUpsert) ClearEntrypoint() *ServiceUpsert {
+	u.SetNull(service.FieldEntrypoint)
+	return u
+}
+
+// SetLabels sets the "labels" field.
+func (u *ServiceUpsert) SetLabels(v map[string]string) *ServiceUpsert {
+	u.Set(service.FieldLabels, v)
+	return u
+}
+
+// UpdateLabels sets the "labels" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateLabels() *ServiceUpsert {
+	u.SetExcluded(service.FieldLabels)
+	return u
+}
+
+// ClearLabels clears the value of the "labels" field.
+func (u *ServiceUpsert) ClearLabels() *ServiceUpsert {
+	u.SetNull(service.FieldLabels)
+	return u
+}
+
+// SetStatus sets the "status" field.
+func (u *ServiceUpsert) SetStatus(v string) *ServiceUpsert {
+	u.Set(service.FieldStatus, v)
+	return u
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateStatus() *ServiceUpsert {
+	u.SetExcluded(service.FieldStatus)
+	return u
+}
+
+// SetError sets the "error" field.
+func (u *ServiceUpsert) SetError(v string) *ServiceUpsert {
+	u.Set(service.FieldError, v)
+	return u
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateError() *ServiceUpsert {
+	u.SetExcluded(service.FieldError)
+	return u
+}
+
+// ClearError clears the value of the "error" field.
+func (u *ServiceUpsert) ClearError() *ServiceUpsert {
+	u.SetNull(service.FieldError)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ServiceUpsert) SetUpdatedAt(v time.Time) *ServiceUpsert {
+	u.Set(service.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateUpdatedAt() *ServiceUpsert {
+	u.SetExcluded(service.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
+// Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(service.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *ServiceUpsertOne) UpdateNewValues() *ServiceUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ID(); exists {
+			s.SetIgnore(service.FieldID)
+		}
+		if _, exists := u.create.mutation.CreatedAt(); exists {
+			s.SetIgnore(service.FieldCreatedAt)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *ServiceUpsertOne) Ignore() *ServiceUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *ServiceUpsertOne) DoNothing() *ServiceUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the ServiceCreate.OnConflict
+// documentation for more info.
+func (u *ServiceUpsertOne) Update(set func(*ServiceUpsert)) *ServiceUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&ServiceUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *ServiceUpsertOne) SetName(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateName() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetServiceName sets the "service_name" field.
+func (u *ServiceUpsertOne) SetServiceName(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetServiceName(v)
+	})
+}
+
+// UpdateServiceName sets the "service_name" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateServiceName() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateServiceName()
+	})
+}
+
+// SetImage sets the "image" field.
+func (u *ServiceUpsertOne) SetImage(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetImage(v)
+	})
+}
+
+// UpdateImage sets the "image" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateImage() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateImage()
+	})
+}
+
+// SetPorts sets the "ports" field.
+func (u *ServiceUpsertOne) SetPorts(v map[string]string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetPorts(v)
+	})
+}
+
+// UpdatePorts sets the "ports" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdatePorts() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdatePorts()
+	})
+}
+
+// ClearPorts clears the value of the "ports" field.
+func (u *ServiceUpsertOne) ClearPorts() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearPorts()
+	})
+}
+
+// SetEnvironment sets the "environment" field.
+func (u *ServiceUpsertOne) SetEnvironment(v map[string]string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetEnvironment(v)
+	})
+}
+
+// UpdateEnvironment sets the "environment" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateEnvironment() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateEnvironment()
+	})
+}
+
+// ClearEnvironment clears the value of the "environment" field.
+func (u *ServiceUpsertOne) ClearEnvironment() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearEnvironment()
+	})
+}
+
+// SetEntrypoint sets the "entrypoint" field.
+func (u *ServiceUpsertOne) SetEntrypoint(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetEntrypoint(v)
+	})
+}
+
+// UpdateEntrypoint sets the "entrypoint" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateEntrypoint() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateEntrypoint()
+	})
+}
+
+// ClearEntrypoint clears the value of the "entrypoint" field.
+func (u *ServiceUpsertOne) ClearEntrypoint() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearEntrypoint()
+	})
+}
+
+// SetLabels sets the "labels" field.
+func (u *ServiceUpsertOne) SetLabels(v map[string]string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetLabels(v)
+	})
+}
+
+// UpdateLabels sets the "labels" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateLabels() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateLabels()
+	})
+}
+
+// ClearLabels clears the value of the "labels" field.
+func (u *ServiceUpsertOne) ClearLabels() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearLabels()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *ServiceUpsertOne) SetStatus(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateStatus() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetError sets the "error" field.
+func (u *ServiceUpsertOne) SetError(v string) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetError(v)
+	})
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateError() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateError()
+	})
+}
+
+// ClearError clears the value of the "error" field.
+func (u *ServiceUpsertOne) ClearError() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearError()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ServiceUpsertOne) SetUpdatedAt(v time.Time) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateUpdatedAt() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *ServiceUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for ServiceCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *ServiceUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *ServiceUpsertOne) ID(ctx context.Context) (id string, err error) {
+	if u.create.driver.Dialect() == dialect.MySQL {
+		// In case of "ON CONFLICT", there is no way to get back non-numeric ID
+		// fields from the database since MySQL does not support the RETURNING clause.
+		return id, errors.New("ent: ServiceUpsertOne.ID is not supported by MySQL driver. Use ServiceUpsertOne.Exec instead")
+	}
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *ServiceUpsertOne) IDX(ctx context.Context) string {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
 }
 
 // ServiceCreateBulk is the builder for creating many Service entities in bulk.
@@ -337,6 +836,7 @@ type ServiceCreateBulk struct {
 	config
 	err      error
 	builders []*ServiceCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Service entities in the database.
@@ -366,6 +866,7 @@ func (scb *ServiceCreateBulk) Save(ctx context.Context) ([]*Service, error) {
 					_, err = mutators[i+1].Mutate(root, scb.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = scb.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, scb.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -412,6 +913,298 @@ func (scb *ServiceCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (scb *ServiceCreateBulk) ExecX(ctx context.Context) {
 	if err := scb.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Service.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.ServiceUpsert) {
+//			SetName(v+v).
+//		}).
+//		Exec(ctx)
+func (scb *ServiceCreateBulk) OnConflict(opts ...sql.ConflictOption) *ServiceUpsertBulk {
+	scb.conflict = opts
+	return &ServiceUpsertBulk{
+		create: scb,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (scb *ServiceCreateBulk) OnConflictColumns(columns ...string) *ServiceUpsertBulk {
+	scb.conflict = append(scb.conflict, sql.ConflictColumns(columns...))
+	return &ServiceUpsertBulk{
+		create: scb,
+	}
+}
+
+// ServiceUpsertBulk is the builder for "upsert"-ing
+// a bulk of Service nodes.
+type ServiceUpsertBulk struct {
+	create *ServiceCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(service.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *ServiceUpsertBulk) UpdateNewValues() *ServiceUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ID(); exists {
+				s.SetIgnore(service.FieldID)
+			}
+			if _, exists := b.mutation.CreatedAt(); exists {
+				s.SetIgnore(service.FieldCreatedAt)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Service.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *ServiceUpsertBulk) Ignore() *ServiceUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *ServiceUpsertBulk) DoNothing() *ServiceUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the ServiceCreateBulk.OnConflict
+// documentation for more info.
+func (u *ServiceUpsertBulk) Update(set func(*ServiceUpsert)) *ServiceUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&ServiceUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *ServiceUpsertBulk) SetName(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateName() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetServiceName sets the "service_name" field.
+func (u *ServiceUpsertBulk) SetServiceName(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetServiceName(v)
+	})
+}
+
+// UpdateServiceName sets the "service_name" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateServiceName() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateServiceName()
+	})
+}
+
+// SetImage sets the "image" field.
+func (u *ServiceUpsertBulk) SetImage(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetImage(v)
+	})
+}
+
+// UpdateImage sets the "image" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateImage() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateImage()
+	})
+}
+
+// SetPorts sets the "ports" field.
+func (u *ServiceUpsertBulk) SetPorts(v map[string]string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetPorts(v)
+	})
+}
+
+// UpdatePorts sets the "ports" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdatePorts() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdatePorts()
+	})
+}
+
+// ClearPorts clears the value of the "ports" field.
+func (u *ServiceUpsertBulk) ClearPorts() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearPorts()
+	})
+}
+
+// SetEnvironment sets the "environment" field.
+func (u *ServiceUpsertBulk) SetEnvironment(v map[string]string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetEnvironment(v)
+	})
+}
+
+// UpdateEnvironment sets the "environment" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateEnvironment() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateEnvironment()
+	})
+}
+
+// ClearEnvironment clears the value of the "environment" field.
+func (u *ServiceUpsertBulk) ClearEnvironment() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearEnvironment()
+	})
+}
+
+// SetEntrypoint sets the "entrypoint" field.
+func (u *ServiceUpsertBulk) SetEntrypoint(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetEntrypoint(v)
+	})
+}
+
+// UpdateEntrypoint sets the "entrypoint" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateEntrypoint() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateEntrypoint()
+	})
+}
+
+// ClearEntrypoint clears the value of the "entrypoint" field.
+func (u *ServiceUpsertBulk) ClearEntrypoint() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearEntrypoint()
+	})
+}
+
+// SetLabels sets the "labels" field.
+func (u *ServiceUpsertBulk) SetLabels(v map[string]string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetLabels(v)
+	})
+}
+
+// UpdateLabels sets the "labels" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateLabels() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateLabels()
+	})
+}
+
+// ClearLabels clears the value of the "labels" field.
+func (u *ServiceUpsertBulk) ClearLabels() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearLabels()
+	})
+}
+
+// SetStatus sets the "status" field.
+func (u *ServiceUpsertBulk) SetStatus(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetStatus(v)
+	})
+}
+
+// UpdateStatus sets the "status" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateStatus() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateStatus()
+	})
+}
+
+// SetError sets the "error" field.
+func (u *ServiceUpsertBulk) SetError(v string) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetError(v)
+	})
+}
+
+// UpdateError sets the "error" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateError() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateError()
+	})
+}
+
+// ClearError clears the value of the "error" field.
+func (u *ServiceUpsertBulk) ClearError() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearError()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *ServiceUpsertBulk) SetUpdatedAt(v time.Time) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateUpdatedAt() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *ServiceUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the ServiceCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for ServiceCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *ServiceUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

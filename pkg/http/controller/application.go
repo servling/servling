@@ -10,7 +10,7 @@ import (
 	"github.com/servling/servling/pkg/domain/auth"
 	"github.com/servling/servling/pkg/http/custom_option"
 	"github.com/servling/servling/pkg/http/handler"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 )
 
 type ApplicationController struct {
@@ -37,11 +37,11 @@ func (ac *ApplicationController) Routes(server *fuego.Server) {
 	fuego.Get(applicationRoutes, "/events", ac.Events, option.OperationID("get-application-events"))
 }
 
-func (ac *ApplicationController) Get(c fuego.Context[any, any]) (*types.Application, error) {
+func (ac *ApplicationController) Get(c fuego.Context[any, any]) (*model.Application, error) {
 	return ac.applicationService.GetByID(c, c.PathParam("id"))
 }
 
-func (ac *ApplicationController) GetAll(c fuego.Context[any, any]) ([]types.Application, error) {
+func (ac *ApplicationController) GetAll(c fuego.Context[any, any]) ([]model.Application, error) {
 	apps, err := ac.applicationService.GetAll(c)
 	if err != nil {
 		return nil, err
@@ -53,15 +53,15 @@ type CreateApplicationRequest struct {
 	Name        string                     `json:"name"`
 	Description string                     `json:"description"`
 	Start       bool                       `json:"start"`
-	Services    []types.CreateServiceInput `json:"services"`
+	Services    []model.CreateServiceInput `json:"services"`
 }
 
-func (ac *ApplicationController) Create(c fuego.Context[CreateApplicationRequest, any]) (*types.Application, error) {
+func (ac *ApplicationController) Create(c fuego.Context[CreateApplicationRequest, any]) (*model.Application, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
 	}
-	return ac.applicationService.Create(c, types.CreateApplicationInput{
+	return ac.applicationService.Create(c, model.CreateApplicationInput{
 		Name:        body.Name,
 		Description: body.Description,
 		Start:       body.Start,
@@ -69,7 +69,7 @@ func (ac *ApplicationController) Create(c fuego.Context[CreateApplicationRequest
 	})
 }
 
-func (ac *ApplicationController) Delete(c fuego.Context[any, any]) (*types.Application, error) {
+func (ac *ApplicationController) Delete(c fuego.Context[any, any]) (*model.Application, error) {
 	app, err := ac.applicationService.GetByID(c, c.PathParam("id"))
 	if err != nil {
 		return nil, err
@@ -77,30 +77,30 @@ func (ac *ApplicationController) Delete(c fuego.Context[any, any]) (*types.Appli
 	return ac.applicationService.Delete(c, app)
 }
 
-func (ac *ApplicationController) Start(c fuego.Context[any, any]) (*types.Application, error) {
-	app, err := ac.applicationService.GetByID(c, c.PathParam("id"))
+func (ac *ApplicationController) Start(c fuego.Context[any, any]) (*model.Application, error) {
+	app, err := ac.applicationService.GetByIDWithIngresses(c, c.PathParam("id"))
 	if err != nil {
 		return nil, err
 	}
-	if app.Status == types.ServiceStatusStarting {
+	if app.Status == model.ServiceStatusStarting {
 		return app, nil
 	}
 	go ac.applicationService.Start(context.Background(), app)
 	return app, nil
 }
 
-func (ac *ApplicationController) Stop(c fuego.Context[any, any]) (*types.Application, error) {
+func (ac *ApplicationController) Stop(c fuego.Context[any, any]) (*model.Application, error) {
 	app, err := ac.applicationService.GetByID(c, c.PathParam("id"))
 	if err != nil {
 		return nil, err
 	}
-	if app.Status == types.ServiceStatusStopping {
+	if app.Status == model.ServiceStatusStopping {
 		return app, nil
 	}
 	go ac.applicationService.Stop(context.Background(), app)
 	return app, nil
 }
 
-func (ac *ApplicationController) Events(c fuego.Context[any, any]) (*types.ApplicationStatusChangedMessage, error) {
-	return handler.SSEEventsController[types.ApplicationStatusChangedMessage](c, ac.applicationService.GetPubSub(), constants.TopicApplicationStatusChanged)
+func (ac *ApplicationController) Events(c fuego.Context[any, any]) (*model.ApplicationStatusChangedMessage, error) {
+	return handler.SSEEventsController[model.ApplicationStatusChangedMessage](c, ac.applicationService.GetPubSub(), constants.TopicApplicationStatusChanged)
 }

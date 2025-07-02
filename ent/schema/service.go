@@ -21,8 +21,8 @@ func (Service) Fields() []ent.Field {
 			DefaultFunc(util.NewNanoID).
 			Unique().
 			Immutable(),
-		field.String("name"),
-		field.String("service_name"),
+		field.String("name").Unique(),
+		field.String("service_name").Unique(),
 		field.String("image"),
 		field.JSON("ports", map[string]string{}).
 			Optional(),
@@ -49,5 +49,6 @@ func (Service) Edges() []ent.Edge {
 		edge.From("application", Application.Type).
 			Ref("services").
 			Unique(),
+		edge.To("ingresses", Ingress.Type),
 	}
 }

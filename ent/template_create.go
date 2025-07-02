@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/servling/servling/ent/application"
@@ -19,6 +21,7 @@ type TemplateCreate struct {
 	config
 	mutation *TemplateMutation
 	hooks    []Hook
+	conflict []sql.ConflictOption
 }
 
 // SetName sets the "name" field.
@@ -175,6 +178,7 @@ func (tc *TemplateCreate) createSpec() (*Template, *sqlgraph.CreateSpec) {
 		_node = &Template{config: tc.config}
 		_spec = sqlgraph.NewCreateSpec(template.Table, sqlgraph.NewFieldSpec(template.FieldID, field.TypeString))
 	)
+	_spec.OnConflict = tc.conflict
 	if id, ok := tc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
@@ -210,11 +214,202 @@ func (tc *TemplateCreate) createSpec() (*Template, *sqlgraph.CreateSpec) {
 	return _node, _spec
 }
 
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Template.Create().
+//		SetName(v).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TemplateUpsert) {
+//			SetName(v+v).
+//		}).
+//		Exec(ctx)
+func (tc *TemplateCreate) OnConflict(opts ...sql.ConflictOption) *TemplateUpsertOne {
+	tc.conflict = opts
+	return &TemplateUpsertOne{
+		create: tc,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (tc *TemplateCreate) OnConflictColumns(columns ...string) *TemplateUpsertOne {
+	tc.conflict = append(tc.conflict, sql.ConflictColumns(columns...))
+	return &TemplateUpsertOne{
+		create: tc,
+	}
+}
+
+type (
+	// TemplateUpsertOne is the builder for "upsert"-ing
+	//  one Template node.
+	TemplateUpsertOne struct {
+		create *TemplateCreate
+	}
+
+	// TemplateUpsert is the "OnConflict" setter.
+	TemplateUpsert struct {
+		*sql.UpdateSet
+	}
+)
+
+// SetName sets the "name" field.
+func (u *TemplateUpsert) SetName(v string) *TemplateUpsert {
+	u.Set(template.FieldName, v)
+	return u
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *TemplateUpsert) UpdateName() *TemplateUpsert {
+	u.SetExcluded(template.FieldName)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TemplateUpsert) SetUpdatedAt(v time.Time) *TemplateUpsert {
+	u.Set(template.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TemplateUpsert) UpdateUpdatedAt() *TemplateUpsert {
+	u.SetExcluded(template.FieldUpdatedAt)
+	return u
+}
+
+// UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
+// Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(template.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *TemplateUpsertOne) UpdateNewValues() *TemplateUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ID(); exists {
+			s.SetIgnore(template.FieldID)
+		}
+		if _, exists := u.create.mutation.CreatedAt(); exists {
+			s.SetIgnore(template.FieldCreatedAt)
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//	    OnConflict(sql.ResolveWithIgnore()).
+//	    Exec(ctx)
+func (u *TemplateUpsertOne) Ignore() *TemplateUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TemplateUpsertOne) DoNothing() *TemplateUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TemplateCreate.OnConflict
+// documentation for more info.
+func (u *TemplateUpsertOne) Update(set func(*TemplateUpsert)) *TemplateUpsertOne {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TemplateUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *TemplateUpsertOne) SetName(v string) *TemplateUpsertOne {
+	return u.Update(func(s *TemplateUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *TemplateUpsertOne) UpdateName() *TemplateUpsertOne {
+	return u.Update(func(s *TemplateUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TemplateUpsertOne) SetUpdatedAt(v time.Time) *TemplateUpsertOne {
+	return u.Update(func(s *TemplateUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TemplateUpsertOne) UpdateUpdatedAt() *TemplateUpsertOne {
+	return u.Update(func(s *TemplateUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *TemplateUpsertOne) Exec(ctx context.Context) error {
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TemplateCreate.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TemplateUpsertOne) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// Exec executes the UPSERT query and returns the inserted/updated ID.
+func (u *TemplateUpsertOne) ID(ctx context.Context) (id string, err error) {
+	if u.create.driver.Dialect() == dialect.MySQL {
+		// In case of "ON CONFLICT", there is no way to get back non-numeric ID
+		// fields from the database since MySQL does not support the RETURNING clause.
+		return id, errors.New("ent: TemplateUpsertOne.ID is not supported by MySQL driver. Use TemplateUpsertOne.Exec instead")
+	}
+	node, err := u.create.Save(ctx)
+	if err != nil {
+		return id, err
+	}
+	return node.ID, nil
+}
+
+// IDX is like ID, but panics if an error occurs.
+func (u *TemplateUpsertOne) IDX(ctx context.Context) string {
+	id, err := u.ID(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // TemplateCreateBulk is the builder for creating many Template entities in bulk.
 type TemplateCreateBulk struct {
 	config
 	err      error
 	builders []*TemplateCreate
+	conflict []sql.ConflictOption
 }
 
 // Save creates the Template entities in the database.
@@ -244,6 +439,7 @@ func (tcb *TemplateCreateBulk) Save(ctx context.Context) ([]*Template, error) {
 					_, err = mutators[i+1].Mutate(root, tcb.builders[i+1].mutation)
 				} else {
 					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
+					spec.OnConflict = tcb.conflict
 					// Invoke the actual operation on the latest mutation in the chain.
 					if err = sqlgraph.BatchCreate(ctx, tcb.driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
@@ -290,6 +486,151 @@ func (tcb *TemplateCreateBulk) Exec(ctx context.Context) error {
 // ExecX is like Exec, but panics if an error occurs.
 func (tcb *TemplateCreateBulk) ExecX(ctx context.Context) {
 	if err := tcb.Exec(ctx); err != nil {
+		panic(err)
+	}
+}
+
+// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
+// of the `INSERT` statement. For example:
+//
+//	client.Template.CreateBulk(builders...).
+//		OnConflict(
+//			// Update the row with the new values
+//			// the was proposed for insertion.
+//			sql.ResolveWithNewValues(),
+//		).
+//		// Override some of the fields with custom
+//		// update values.
+//		Update(func(u *ent.TemplateUpsert) {
+//			SetName(v+v).
+//		}).
+//		Exec(ctx)
+func (tcb *TemplateCreateBulk) OnConflict(opts ...sql.ConflictOption) *TemplateUpsertBulk {
+	tcb.conflict = opts
+	return &TemplateUpsertBulk{
+		create: tcb,
+	}
+}
+
+// OnConflictColumns calls `OnConflict` and configures the columns
+// as conflict target. Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//		OnConflict(sql.ConflictColumns(columns...)).
+//		Exec(ctx)
+func (tcb *TemplateCreateBulk) OnConflictColumns(columns ...string) *TemplateUpsertBulk {
+	tcb.conflict = append(tcb.conflict, sql.ConflictColumns(columns...))
+	return &TemplateUpsertBulk{
+		create: tcb,
+	}
+}
+
+// TemplateUpsertBulk is the builder for "upsert"-ing
+// a bulk of Template nodes.
+type TemplateUpsertBulk struct {
+	create *TemplateCreateBulk
+}
+
+// UpdateNewValues updates the mutable fields using the new values that
+// were set on create. Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//		OnConflict(
+//			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(template.FieldID)
+//			}),
+//		).
+//		Exec(ctx)
+func (u *TemplateUpsertBulk) UpdateNewValues() *TemplateUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ID(); exists {
+				s.SetIgnore(template.FieldID)
+			}
+			if _, exists := b.mutation.CreatedAt(); exists {
+				s.SetIgnore(template.FieldCreatedAt)
+			}
+		}
+	}))
+	return u
+}
+
+// Ignore sets each column to itself in case of conflict.
+// Using this option is equivalent to using:
+//
+//	client.Template.Create().
+//		OnConflict(sql.ResolveWithIgnore()).
+//		Exec(ctx)
+func (u *TemplateUpsertBulk) Ignore() *TemplateUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
+	return u
+}
+
+// DoNothing configures the conflict_action to `DO NOTHING`.
+// Supported only by SQLite and PostgreSQL.
+func (u *TemplateUpsertBulk) DoNothing() *TemplateUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.DoNothing())
+	return u
+}
+
+// Update allows overriding fields `UPDATE` values. See the TemplateCreateBulk.OnConflict
+// documentation for more info.
+func (u *TemplateUpsertBulk) Update(set func(*TemplateUpsert)) *TemplateUpsertBulk {
+	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
+		set(&TemplateUpsert{UpdateSet: update})
+	}))
+	return u
+}
+
+// SetName sets the "name" field.
+func (u *TemplateUpsertBulk) SetName(v string) *TemplateUpsertBulk {
+	return u.Update(func(s *TemplateUpsert) {
+		s.SetName(v)
+	})
+}
+
+// UpdateName sets the "name" field to the value that was provided on create.
+func (u *TemplateUpsertBulk) UpdateName() *TemplateUpsertBulk {
+	return u.Update(func(s *TemplateUpsert) {
+		s.UpdateName()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *TemplateUpsertBulk) SetUpdatedAt(v time.Time) *TemplateUpsertBulk {
+	return u.Update(func(s *TemplateUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *TemplateUpsertBulk) UpdateUpdatedAt() *TemplateUpsertBulk {
+	return u.Update(func(s *TemplateUpsert) {
+		s.UpdateUpdatedAt()
+	})
+}
+
+// Exec executes the query.
+func (u *TemplateUpsertBulk) Exec(ctx context.Context) error {
+	if u.create.err != nil {
+		return u.create.err
+	}
+	for i, b := range u.create.builders {
+		if len(b.conflict) != 0 {
+			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the TemplateCreateBulk instead", i)
+		}
+	}
+	if len(u.create.conflict) == 0 {
+		return errors.New("ent: missing options for TemplateCreateBulk.OnConflict")
+	}
+	return u.create.Exec(ctx)
+}
+
+// ExecX is like Exec, but panics if an error occurs.
+func (u *TemplateUpsertBulk) ExecX(ctx context.Context) {
+	if err := u.create.Exec(ctx); err != nil {
 		panic(err)
 	}
 }

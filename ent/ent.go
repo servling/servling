@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/domain"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/service"
 	"github.com/servling/servling/ent/template"
 	"github.com/servling/servling/ent/user"
@@ -77,6 +79,8 @@ func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			application.Table: application.ValidColumn,
+			domain.Table:      domain.ValidColumn,
+			ingress.Table:     ingress.ValidColumn,
 			service.Table:     service.ValidColumn,
 			template.Table:    template.ValidColumn,
 			user.Table:        user.ValidColumn,

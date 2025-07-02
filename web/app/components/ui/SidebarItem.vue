@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import type { SidebarItem } from '~/types/sidebar'
 // Use `cva` from the 'cva' package (previously class-variance-authority)
 import { cva } from 'cva'
 
-defineProps<{ item: SidebarItem }>()
+interface Props {
+  title: string
+  icon?: string
+  href?: string
+  elevated?: boolean
+  action?: () => void
+}
+
+defineProps<Props>()
 
 // This CVA recipe is built according to the `cva@beta` documentation you provided.
 const sidebarItem = cva(
@@ -63,27 +70,27 @@ const sidebarItem = cva(
 
 <template>
   <NuxtLink
-    v-if="item.href"
+    v-if="href"
     v-slot="{ isActive, href, navigate }"
-    :to="item.href"
+    :to="href"
     custom
   >
-    <a :href="href" :class="sidebarItem({ elevated: item.elevated, active: isActive })" @click="navigate">
-      <Icon v-if="item.icon" :name="item.icon" class="flex-shrink-0 h-5 w-5" />
-      <span>{{ item.title }}</span>
+    <a :href="href" :class="sidebarItem({ elevated, active: isActive })" @click="navigate">
+      <Icon v-if="icon" :name="icon" class="flex-shrink-0 h-5 w-5" />
+      <span>{{ title }}</span>
     </a>
   </NuxtLink>
 
   <button
-    v-else-if="item.action"
-    :class="sidebarItem({ elevated: item.elevated, active: false })"
-    @click="item.action"
+    v-else-if="action"
+    :class="sidebarItem({ elevated, active: false })"
+    @click="action"
   >
-    <Icon v-if="item.icon" :name="item.icon" class="flex-shrink-0 h-5 w-5" />
-    <span>{{ item.title }}</span>
+    <Icon v-if="icon" :name="icon" class="flex-shrink-0 h-5 w-5" />
+    <span>{{ title }}</span>
   </button>
 
   <span v-else :class="sidebarItem({ variant: 'title' })">
-    {{ item.title }}
+    {{ title }}
   </span>
 </template>

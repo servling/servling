@@ -21,7 +21,7 @@ func (Application) Fields() []ent.Field {
 			DefaultFunc(util.NewNanoID).
 			Unique().
 			Immutable(),
-		field.String("name"),
+		field.String("name").Unique(),
 		field.String("description"),
 		field.String("image_url").
 			Optional(),

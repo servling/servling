@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/predicate"
 	"github.com/servling/servling/ent/service"
 )
@@ -186,6 +187,21 @@ func (su *ServiceUpdate) SetApplication(a *Application) *ServiceUpdate {
 	return su.SetApplicationID(a.ID)
 }
 
+// AddIngressIDs adds the "ingresses" edge to the Ingress entity by IDs.
+func (su *ServiceUpdate) AddIngressIDs(ids ...string) *ServiceUpdate {
+	su.mutation.AddIngressIDs(ids...)
+	return su
+}
+
+// AddIngresses adds the "ingresses" edges to the Ingress entity.
+func (su *ServiceUpdate) AddIngresses(i ...*Ingress) *ServiceUpdate {
+	ids := make([]string, len(i))
+	for j := range i {
+		ids[j] = i[j].ID
+	}
+	return su.AddIngressIDs(ids...)
+}
+
 // Mutation returns the ServiceMutation object of the builder.
 func (su *ServiceUpdate) Mutation() *ServiceMutation {
 	return su.mutation
@@ -195,6 +211,27 @@ func (su *ServiceUpdate) Mutation() *ServiceMutation {
 func (su *ServiceUpdate) ClearApplication() *ServiceUpdate {
 	su.mutation.ClearApplication()
 	return su
+}
+
+// ClearIngresses clears all "ingresses" edges to the Ingress entity.
+func (su *ServiceUpdate) ClearIngresses() *ServiceUpdate {
+	su.mutation.ClearIngresses()
+	return su
+}
+
+// RemoveIngressIDs removes the "ingresses" edge to Ingress entities by IDs.
+func (su *ServiceUpdate) RemoveIngressIDs(ids ...string) *ServiceUpdate {
+	su.mutation.RemoveIngressIDs(ids...)
+	return su
+}
+
+// RemoveIngresses removes "ingresses" edges to Ingress entities.
+func (su *ServiceUpdate) RemoveIngresses(i ...*Ingress) *ServiceUpdate {
+	ids := make([]string, len(i))
+	for j := range i {
+		ids[j] = i[j].ID
+	}
+	return su.RemoveIngressIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -309,6 +346,51 @@ func (su *ServiceUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(application.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if su.mutation.IngressesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := su.mutation.RemovedIngressesIDs(); len(nodes) > 0 && !su.mutation.IngressesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := su.mutation.IngressesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -493,6 +575,21 @@ func (suo *ServiceUpdateOne) SetApplication(a *Application) *ServiceUpdateOne {
 	return suo.SetApplicationID(a.ID)
 }
 
+// AddIngressIDs adds the "ingresses" edge to the Ingress entity by IDs.
+func (suo *ServiceUpdateOne) AddIngressIDs(ids ...string) *ServiceUpdateOne {
+	suo.mutation.AddIngressIDs(ids...)
+	return suo
+}
+
+// AddIngresses adds the "ingresses" edges to the Ingress entity.
+func (suo *ServiceUpdateOne) AddIngresses(i ...*Ingress) *ServiceUpdateOne {
+	ids := make([]string, len(i))
+	for j := range i {
+		ids[j] = i[j].ID
+	}
+	return suo.AddIngressIDs(ids...)
+}
+
 // Mutation returns the ServiceMutation object of the builder.
 func (suo *ServiceUpdateOne) Mutation() *ServiceMutation {
 	return suo.mutation
@@ -502,6 +599,27 @@ func (suo *ServiceUpdateOne) Mutation() *ServiceMutation {
 func (suo *ServiceUpdateOne) ClearApplication() *ServiceUpdateOne {
 	suo.mutation.ClearApplication()
 	return suo
+}
+
+// ClearIngresses clears all "ingresses" edges to the Ingress entity.
+func (suo *ServiceUpdateOne) ClearIngresses() *ServiceUpdateOne {
+	suo.mutation.ClearIngresses()
+	return suo
+}
+
+// RemoveIngressIDs removes the "ingresses" edge to Ingress entities by IDs.
+func (suo *ServiceUpdateOne) RemoveIngressIDs(ids ...string) *ServiceUpdateOne {
+	suo.mutation.RemoveIngressIDs(ids...)
+	return suo
+}
+
+// RemoveIngresses removes "ingresses" edges to Ingress entities.
+func (suo *ServiceUpdateOne) RemoveIngresses(i ...*Ingress) *ServiceUpdateOne {
+	ids := make([]string, len(i))
+	for j := range i {
+		ids[j] = i[j].ID
+	}
+	return suo.RemoveIngressIDs(ids...)
 }
 
 // Where appends a list predicates to the ServiceUpdate builder.
@@ -646,6 +764,51 @@ func (suo *ServiceUpdateOne) sqlSave(ctx context.Context) (_node *Service, err e
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(application.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if suo.mutation.IngressesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := suo.mutation.RemovedIngressesIDs(); len(nodes) > 0 && !suo.mutation.IngressesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := suo.mutation.IngressesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   service.IngressesTable,
+			Columns: []string{service.IngressesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ingress.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

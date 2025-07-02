@@ -15,7 +15,7 @@ import (
 	"github.com/servling/servling/pkg/config"
 	"github.com/servling/servling/pkg/constants"
 	"github.com/servling/servling/pkg/deploy"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 	"github.com/servling/servling/pkg/util"
 )
 
@@ -40,12 +40,12 @@ func (s *ApplicationService) GetPubSub() *gochannel.GoChannel {
 	return s.pubSub
 }
 
-func (s *ApplicationService) GetAll(ctx context.Context) ([]types.Application, error) {
+func (s *ApplicationService) GetAll(ctx context.Context) ([]model.Application, error) {
 	apps, err := s.repository.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return slice.FromPtr(slice.Map(apps, types.ApplicationFromEnt)), nil
+	return slice.FromPtr(slice.Map(apps, model.ApplicationFromEnt)), nil
 }
 
 func (s *ApplicationService) SubscribeToServiceEvents() error {
@@ -58,23 +58,38 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 	for msg := range channel {
 		log.Debug().Str("UUID", msg.UUID).Msg("Received message.")
 
-		receivedMsg, err := encoding.UnmarshalJSON[types.ServiceStatusChangedMessage](msg.Payload)
+		receivedMsg, err := encoding.UnmarshalJSON[model.ServiceStatusChangedMessage](msg.Payload)
 		if err != nil {
 			log.Debug().Err(err).Msg("Error unmarshalling message.")
 			msg.Nack()
 			continue
 		}
 
-		update := types.ServiceStatusInfoUpdate{
-			ID: receivedMsg.ID,
-			ServiceStatusInfo: types.ServiceStatusInfo{
-				Status: receivedMsg.Status,
-				Error:  receivedMsg.Error,
-			},
+		if receivedMsg.ID == "*" {
+			allServices, err := s.repository.GetAllServices(context.Background())
+			if err != nil {
+				log.Debug().Err(err).Msg("Error getting all services from repository.")
+			}
+			for _, service := range allServices {
+				s.ChangeServiceStatus(msg.Context(), model.ServiceStatusInfoUpdate{
+					ID: service.ID,
+					ServiceStatusInfo: model.ServiceStatusInfo{
+						Status: receivedMsg.Status,
+						Error:  receivedMsg.Error,
+					},
+				})
+			}
+			log.Debug().Str("status", string(receivedMsg.Status)).Msg("Successfully changed status for all services.")
+		} else {
+			s.ChangeServiceStatus(msg.Context(), model.ServiceStatusInfoUpdate{
+				ID: receivedMsg.ID,
+				ServiceStatusInfo: model.ServiceStatusInfo{
+					Status: receivedMsg.Status,
+					Error:  receivedMsg.Error,
+				},
+			})
+			log.Debug().Str("serviceId", receivedMsg.ID).Str("status", string(receivedMsg.Status)).Msg("Successfully processed status change for service.")
 		}
-
-		s.ChangeServiceStatus(msg.Context(), update)
-		log.Debug().Str("serviceId", receivedMsg.ID).Str("status", string(receivedMsg.Status)).Msg("Successfully processed status change for service.")
 
 		msg.Ack()
 	}
@@ -82,7 +97,7 @@ func (s *ApplicationService) SubscribeToServiceEvents() error {
 	return nil
 }
 
-func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update types.ServiceStatusInfoUpdate) {
+func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update model.ServiceStatusInfoUpdate) {
 	err := s.repository.UpdateServiceStatus(ctx, update.ID, update.ServiceStatusInfo)
 	if err != nil {
 		log.Error().Str("serviceId", update.ID).Err(err).Msg("Service status could not be updated.")
@@ -104,32 +119,32 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 		return
 	}
 
-	var overallStatus types.ServiceStatus
+	var overallStatus model.ServiceStatus
 	var overallError string
 
 	if len(services) == 0 {
-		overallStatus = types.ServiceStatusStopped
+		overallStatus = model.ServiceStatusStopped
 	} else {
-		statusPriority := map[types.ServiceStatus]int{
-			types.ServiceStatusError:    5,
-			types.ServiceStatusStopping: 4,
-			types.ServiceStatusStarting: 3,
-			types.ServiceStatusRunning:  2,
-			types.ServiceStatusStopped:  1,
+		statusPriority := map[model.ServiceStatus]int{
+			model.ServiceStatusError:    5,
+			model.ServiceStatusStopping: 4,
+			model.ServiceStatusStarting: 3,
+			model.ServiceStatusRunning:  2,
+			model.ServiceStatusStopped:  1,
 		}
 
-		overallStatus = types.ServiceStatusStopped
+		overallStatus = model.ServiceStatusStopped
 		for _, svc := range services {
-			serviceStatus := types.ServiceStatus(svc.Status)
+			serviceStatus := model.ServiceStatus(svc.Status)
 			if statusPriority[serviceStatus] > statusPriority[overallStatus] {
 				overallStatus = serviceStatus
 			}
 		}
 
-		if overallStatus == types.ServiceStatusError {
+		if overallStatus == model.ServiceStatusError {
 			var errorMessages []string
 			for _, svc := range services {
-				if types.ServiceStatus(svc.Status) == types.ServiceStatusError && svc.Error != nil {
+				if model.ServiceStatus(svc.Status) == model.ServiceStatusError && svc.Error != nil {
 					errorMessages = append(errorMessages, *svc.Error)
 				}
 			}
@@ -137,15 +152,15 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 		}
 	}
 
-	applicationUpdate := types.ServiceStatusInfoUpdate{
+	applicationUpdate := model.ServiceStatusInfoUpdate{
 		ID: application.ID,
-		ServiceStatusInfo: types.ServiceStatusInfo{
+		ServiceStatusInfo: model.ServiceStatusInfo{
 			Status: overallStatus,
 			Error:  &overallError,
 		},
 	}
 
-	if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, types.ApplicationStatusChangedMessage{
+	if pubErr := util.Publish(s.pubSub, constants.TopicApplicationStatusChanged, model.ApplicationStatusChangedMessage{
 		ID:     application.ID,
 		Status: applicationUpdate.Status,
 		Error:  applicationUpdate.Error,
@@ -153,7 +168,7 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 		log.Error().Err(pubErr).Str("serviceId", service.ID).Msg("Failed to publish started status for service.")
 	}
 
-	err = s.ChangeApplicationStatus(ctx, types.ApplicationStatusInfoUpdate{
+	err = s.ChangeApplicationStatus(ctx, model.ApplicationStatusInfoUpdate{
 		ID:                application.ID,
 		ServiceStatusInfo: applicationUpdate.ServiceStatusInfo,
 	})
@@ -162,19 +177,27 @@ func (s *ApplicationService) ChangeServiceStatus(ctx context.Context, update typ
 	}
 }
 
-func (s *ApplicationService) ChangeApplicationStatus(ctx context.Context, update types.ApplicationStatusInfoUpdate) error {
+func (s *ApplicationService) ChangeApplicationStatus(ctx context.Context, update model.ApplicationStatusInfoUpdate) error {
 	return s.repository.UpdateApplicationStatus(ctx, update.ID, update.ServiceStatusInfo)
 }
 
-func (s *ApplicationService) GetByID(ctx context.Context, id string) (*types.Application, error) {
+func (s *ApplicationService) GetByID(ctx context.Context, id string) (*model.Application, error) {
 	app, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return types.ApplicationFromEnt(app), nil
+	return model.ApplicationFromEnt(app), nil
 }
 
-func (s *ApplicationService) Delete(ctx context.Context, application *types.Application) (*types.Application, error) {
+func (s *ApplicationService) GetByIDWithIngresses(ctx context.Context, id string) (*model.Application, error) {
+	app, err := s.repository.GetByIDWithIngresses(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return model.ApplicationFromEnt(app), nil
+}
+
+func (s *ApplicationService) Delete(ctx context.Context, application *model.Application) (*model.Application, error) {
 	go s.Stop(ctx, application)
 	err := s.repository.Delete(ctx, application.ID)
 	if err != nil {
@@ -183,20 +206,20 @@ func (s *ApplicationService) Delete(ctx context.Context, application *types.Appl
 	return application, nil
 }
 
-func (s *ApplicationService) Create(ctx context.Context, input types.CreateApplicationInput) (*types.Application, error) {
+func (s *ApplicationService) Create(ctx context.Context, input model.CreateApplicationInput) (*model.Application, error) {
 	databaseApplication, err := s.repository.Create(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	resultApplication := types.ApplicationFromEnt(databaseApplication)
+	resultApplication := model.ApplicationFromEnt(databaseApplication)
 	if input.Start {
 		go s.Start(context.Background(), resultApplication)
 	}
 	createdApp, err := s.repository.GetByID(ctx, resultApplication.ID)
-	return types.ApplicationFromEnt(createdApp), err
+	return model.ApplicationFromEnt(createdApp), err
 }
 
-func (s *ApplicationService) StartService(ctx context.Context, service *types.Service) {
+func (s *ApplicationService) StartService(ctx context.Context, service *model.Service) {
 	log.Debug().Str("serviceId", service.ID).Msg("Starting individual service...")
 	if err := s.deployManager.StartService(ctx, service); err != nil {
 		log.Error().Err(err).Str("serviceId", service.ID).Msg("Individual service failed to start.")
@@ -214,19 +237,19 @@ func (s *ApplicationService) StopService(ctx context.Context, serviceID string) 
 	}
 }
 
-func (s *ApplicationService) Start(ctx context.Context, application *types.Application) {
+func (s *ApplicationService) Start(ctx context.Context, application *model.Application) {
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, len(application.Services))
 	log.Debug().Str("applicationId", application.ID).Int("serviceCount", len(application.Services)).Msg("Starting services for application...")
 
 	for _, service := range application.Services {
 		wg.Add(1)
-		go func(srv *types.Service) {
+		go func(srv *model.Service) {
 			defer wg.Done()
 			if err := s.deployManager.StartService(ctx, srv); err != nil {
 				errorChannel <- fmt.Errorf("service '%s' failed: %w", srv.Name, err)
 			}
-		}(&service)
+		}(service)
 	}
 
 	wg.Wait()
@@ -245,7 +268,7 @@ func (s *ApplicationService) Start(ctx context.Context, application *types.Appli
 	}
 }
 
-func (s *ApplicationService) Stop(ctx context.Context, application *types.Application) {
+func (s *ApplicationService) Stop(ctx context.Context, application *model.Application) {
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, len(application.Services))
 	log.Debug().Str("applicationId", application.ID).Msg("Stopping all services for application...")

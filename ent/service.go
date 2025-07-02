@@ -52,9 +52,11 @@ type Service struct {
 type ServiceEdges struct {
 	// Application holds the value of the application edge.
 	Application *Application `json:"application,omitempty"`
+	// Ingresses holds the value of the ingresses edge.
+	Ingresses []*Ingress `json:"ingresses,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // ApplicationOrErr returns the Application value or an error if the edge
@@ -66,6 +68,15 @@ func (e ServiceEdges) ApplicationOrErr() (*Application, error) {
 		return nil, &NotFoundError{label: application.Label}
 	}
 	return nil, &NotLoadedError{edge: "application"}
+}
+
+// IngressesOrErr returns the Ingresses value or an error if the edge
+// was not loaded in eager-loading.
+func (e ServiceEdges) IngressesOrErr() ([]*Ingress, error) {
+	if e.loadedTypes[1] {
+		return e.Ingresses, nil
+	}
+	return nil, &NotLoadedError{edge: "ingresses"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -198,6 +209,11 @@ func (s *Service) Value(name string) (ent.Value, error) {
 // QueryApplication queries the "application" edge of the Service entity.
 func (s *Service) QueryApplication() *ApplicationQuery {
 	return NewServiceClient(s.config).QueryApplication(s)
+}
+
+// QueryIngresses queries the "ingresses" edge of the Service entity.
+func (s *Service) QueryIngresses() *IngressQuery {
+	return NewServiceClient(s.config).QueryIngresses(s)
 }
 
 // Update returns a builder for updating this Service.

@@ -21,7 +21,7 @@ func (Template) Fields() []ent.Field {
 			DefaultFunc(util.NewNanoID).
 			Unique().
 			Immutable(),
-		field.String("name"),
+		field.String("name").Unique(),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable(),

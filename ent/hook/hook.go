@@ -21,6 +21,30 @@ func (f ApplicationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ApplicationMutation", m)
 }
 
+// The DomainFunc type is an adapter to allow the use of ordinary
+// function as Domain mutator.
+type DomainFunc func(context.Context, *ent.DomainMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DomainFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DomainMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DomainMutation", m)
+}
+
+// The IngressFunc type is an adapter to allow the use of ordinary
+// function as Ingress mutator.
+type IngressFunc func(context.Context, *ent.IngressMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IngressFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IngressMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IngressMutation", m)
+}
+
 // The ServiceFunc type is an adapter to allow the use of ordinary
 // function as Service mutator.
 type ServiceFunc func(context.Context, *ent.ServiceMutation) (ent.Value, error)

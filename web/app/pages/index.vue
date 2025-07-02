@@ -10,7 +10,6 @@ definePageMeta({
 
 const applicationStore = useApplicationStore()
 
-// Calculate application stats based on real data
 const applicationStats = computed(() => {
   const count = applicationStore.applications.length
   const running = applicationStore.applications.filter(app => app.status === 'running').length
@@ -22,11 +21,10 @@ const applicationStats = computed(() => {
   }
 })
 
-// Other stats (could be fetched from API in the future)
 const stats = {
   nodes: {
-    count: 3,
-    online: 2,
+    count: 1,
+    online: 1,
   },
   memory: {
     used: '64.2 GB',
@@ -45,15 +43,27 @@ const stats = {
   <main>
     <UiContainer>
       <div class="gap-8 grid grid-cols-1 lg:grid-cols-4 md:grid-cols-2">
-        <DashboardStatCard
-          title="Applications"
-          :value="applicationStats.count"
-          :subtitle="`${applicationStats.running} running`"
-          icon="ph:app-window"
-          color="primary"
-          :show-progress-bar="true"
-          :percentage="applicationStats.percentage"
-        />
+        <ClientOnly>
+          <DashboardStatCard
+            title="Applications"
+            :value="applicationStats.count"
+            :subtitle="`${applicationStats.running} running`"
+            icon="ph:app-window"
+            color="primary"
+            :show-progress-bar="true"
+            :percentage="applicationStats.percentage"
+          />
+          <template #fallback>
+            <UiCard>
+              <div class="space-y-2">
+                <UiSkeleton :height="32" width="75%" class="rounded-md" />
+                <UiSkeleton :height="48" width="10%" class="rounded-md" />
+                <UiSkeleton :height="24" width="100%" class="rounded-md" />
+              </div>
+            </UiCard>
+          </template>
+        </ClientOnly>
+
         <DashboardStatCard
           title="Nodes"
           :value="stats.nodes.count"
@@ -81,48 +91,51 @@ const stats = {
         />
       </div>
 
-      <!-- Applications List with Status -->
       <div class="mt-8">
         <h2 class="text-xl text-black font-bold mb-4 dark:text-white">
           Application Status
         </h2>
 
-        <div v-if="applicationStore.fetching" class="flex justify-center">
-          <Icon name="ph:spinner-bold" class="text-primary h-6 w-6 animate-spin" />
-        </div>
-
-        <div v-else-if="applicationStats.count === 0" class="py-6 text-center rounded-lg bg-zinc-100 dark:bg-zinc-900">
-          <p class="text-zinc-600 dark:text-zinc-400">
-            No applications yet. Create your first one to get started.
-          </p>
-          <UiButton class="mt-4" left-icon="ph:plus" @click="$router.push('/apps/new')">
-            New Application
-          </UiButton>
-        </div>
-
-        <div v-else class="space-y-4">
-          <div v-for="app in applicationStore.applications" :key="app.id" class="p-4 rounded-lg bg-zinc-100 flex items-center justify-between dark:bg-zinc-900">
-            <div class="flex items-center space-x-4">
-              <div class="p-2 rounded-md bg-zinc-200 flex-shrink-0 dark:bg-zinc-800">
-                <Icon name="ph:squares-four" class="text-zinc-600 h-5 w-5 dark:text-zinc-400" />
-              </div>
-              <div>
-                <div class="flex gap-2 items-center">
-                  <h3 class="text-black font-medium dark:text-white">
-                    {{ app.name }}
-                  </h3>
-                  <ApplicationStatusBadge :status="app.status" />
-                </div>
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                  {{ app.description }}
-                </p>
-              </div>
-            </div>
-            <UiButton size="sm" intent="secondary" left-icon="ph:eye" @click="$router.push(`/apps/${app.id}`)">
-              View
+        <ClientOnly>
+          <div v-if="applicationStats.count === 0" class="py-6 text-center rounded-lg bg-zinc-100 dark:bg-zinc-900">
+            <p class="text-zinc-600 dark:text-zinc-400">
+              No applications yet. Create your first one to get started.
+            </p>
+            <UiButton class="mt-4" left-icon="ph:plus" @click="$router.push('/apps/new')">
+              New Application
             </UiButton>
           </div>
-        </div>
+
+          <div v-else class="space-y-4">
+            <div v-for="app in applicationStore.applications" :key="app.id" class="p-4 rounded-lg bg-zinc-100 flex items-center justify-between dark:bg-zinc-900">
+              <div class="flex items-center space-x-4">
+                <div class="p-2 rounded-md bg-zinc-200 flex-shrink-0 dark:bg-zinc-800">
+                  <Icon name="ph:squares-four" class="text-zinc-600 h-5 w-5 dark:text-zinc-400" />
+                </div>
+                <div>
+                  <div class="flex gap-2 items-center">
+                    <h3 class="text-black font-medium dark:text-white">
+                      {{ app.name }}
+                    </h3>
+                    <ApplicationStatusBadge :status="app.status" />
+                  </div>
+                  <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    {{ app.description }}
+                  </p>
+                </div>
+              </div>
+              <UiButton size="sm" intent="secondary" left-icon="ph:eye" @click="$router.push(`/apps/${app.id}`)">
+                View
+              </UiButton>
+            </div>
+          </div>
+
+          <template #fallback>
+            <div class="flex justify-center">
+              <Icon name="ph:spinner-bold" class="text-primary h-6 w-6 animate-spin" />
+            </div>
+          </template>
+        </ClientOnly>
       </div>
     </UiContainer>
   </main>

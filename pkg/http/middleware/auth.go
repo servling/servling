@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rs/zerolog/log"
 	"github.com/servling/servling/pkg/domain/auth"
-	"github.com/servling/servling/pkg/types"
+	"github.com/servling/servling/pkg/model"
 	"github.com/servling/servling/pkg/util"
 )
 
@@ -18,34 +17,27 @@ func ProvideAuthContext(authService *auth.AuthService) func(http.Handler) http.H
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader != "" {
-				log.Debug().Str("Authorization", authHeader).Msg("ProvideAuthContext")
 				parts := strings.Split(authHeader, " ")
 				if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
 					tokenString = parts[1]
 				} else {
-					log.Debug().Str("method", "ProvideAuthContext").Msg("Invalid Authorization header")
 					next.ServeHTTP(w, r)
 					return
 				}
 			} else {
 				tokenFromQuery := r.URL.Query().Get("token")
 				if tokenFromQuery != "" {
-					log.Debug().Str("token", tokenFromQuery).Msg("Token found in query parameter for SSE request")
 					tokenString = tokenFromQuery
 				}
 			}
 
 			if tokenString == "" {
 				next.ServeHTTP(w, r)
-				log.Debug().Str("method", "ProvideAuthContext").Msg("No token found in header or query")
 				return
 			}
 
-			log.Debug().Str("tokenString", tokenString).Msg("ProvideAuthContext")
-
 			claims, err := authService.VerifyAccessToken(tokenString)
 			if err != nil {
-				log.Debug().Str("method", "ProvideAuthContext").Err(err).Msg("Invalid token")
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -61,7 +53,7 @@ func ProvideAuthContext(authService *auth.AuthService) func(http.Handler) http.H
 func RequireAuth() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, ok := r.Context().Value(auth.CtxUserKey{}).(*types.AccessTokenPayload)
+			_, ok := r.Context().Value(auth.CtxUserKey{}).(*model.AccessTokenPayload)
 
 			if !ok {
 				w.Header().Set("Content-Type", "application/json")

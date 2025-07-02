@@ -16,6 +16,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/servling/servling/ent/application"
+	"github.com/servling/servling/ent/domain"
+	"github.com/servling/servling/ent/ingress"
 	"github.com/servling/servling/ent/service"
 	"github.com/servling/servling/ent/template"
 	"github.com/servling/servling/ent/user"
@@ -28,6 +30,10 @@ type Client struct {
 	Schema *migrate.Schema
 	// Application is the client for interacting with the Application builders.
 	Application *ApplicationClient
+	// Domain is the client for interacting with the Domain builders.
+	Domain *DomainClient
+	// Ingress is the client for interacting with the Ingress builders.
+	Ingress *IngressClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
 	// Template is the client for interacting with the Template builders.
@@ -46,6 +52,8 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Application = NewApplicationClient(c.config)
+	c.Domain = NewDomainClient(c.config)
+	c.Ingress = NewIngressClient(c.config)
 	c.Service = NewServiceClient(c.config)
 	c.Template = NewTemplateClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -142,6 +150,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:         ctx,
 		config:      cfg,
 		Application: NewApplicationClient(cfg),
+		Domain:      NewDomainClient(cfg),
+		Ingress:     NewIngressClient(cfg),
 		Service:     NewServiceClient(cfg),
 		Template:    NewTemplateClient(cfg),
 		User:        NewUserClient(cfg),
@@ -165,6 +175,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:         ctx,
 		config:      cfg,
 		Application: NewApplicationClient(cfg),
+		Domain:      NewDomainClient(cfg),
+		Ingress:     NewIngressClient(cfg),
 		Service:     NewServiceClient(cfg),
 		Template:    NewTemplateClient(cfg),
 		User:        NewUserClient(cfg),
@@ -196,19 +208,21 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Application.Use(hooks...)
-	c.Service.Use(hooks...)
-	c.Template.Use(hooks...)
-	c.User.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.Application, c.Domain, c.Ingress, c.Service, c.Template, c.User,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Application.Intercept(interceptors...)
-	c.Service.Intercept(interceptors...)
-	c.Template.Intercept(interceptors...)
-	c.User.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.Application, c.Domain, c.Ingress, c.Service, c.Template, c.User,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -216,6 +230,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *ApplicationMutation:
 		return c.Application.mutate(ctx, m)
+	case *DomainMutation:
+		return c.Domain.mutate(ctx, m)
+	case *IngressMutation:
+		return c.Ingress.mutate(ctx, m)
 	case *ServiceMutation:
 		return c.Service.mutate(ctx, m)
 	case *TemplateMutation:
@@ -392,6 +410,320 @@ func (c *ApplicationClient) mutate(ctx context.Context, m *ApplicationMutation) 
 	}
 }
 
+// DomainClient is a client for the Domain schema.
+type DomainClient struct {
+	config
+}
+
+// NewDomainClient returns a client for the Domain from the given config.
+func NewDomainClient(c config) *DomainClient {
+	return &DomainClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `domain.Hooks(f(g(h())))`.
+func (c *DomainClient) Use(hooks ...Hook) {
+	c.hooks.Domain = append(c.hooks.Domain, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `domain.Intercept(f(g(h())))`.
+func (c *DomainClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Domain = append(c.inters.Domain, interceptors...)
+}
+
+// Create returns a builder for creating a Domain entity.
+func (c *DomainClient) Create() *DomainCreate {
+	mutation := newDomainMutation(c.config, OpCreate)
+	return &DomainCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Domain entities.
+func (c *DomainClient) CreateBulk(builders ...*DomainCreate) *DomainCreateBulk {
+	return &DomainCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DomainClient) MapCreateBulk(slice any, setFunc func(*DomainCreate, int)) *DomainCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DomainCreateBulk{err: fmt.Errorf("calling to DomainClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DomainCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DomainCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Domain.
+func (c *DomainClient) Update() *DomainUpdate {
+	mutation := newDomainMutation(c.config, OpUpdate)
+	return &DomainUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DomainClient) UpdateOne(d *Domain) *DomainUpdateOne {
+	mutation := newDomainMutation(c.config, OpUpdateOne, withDomain(d))
+	return &DomainUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DomainClient) UpdateOneID(id string) *DomainUpdateOne {
+	mutation := newDomainMutation(c.config, OpUpdateOne, withDomainID(id))
+	return &DomainUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Domain.
+func (c *DomainClient) Delete() *DomainDelete {
+	mutation := newDomainMutation(c.config, OpDelete)
+	return &DomainDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DomainClient) DeleteOne(d *Domain) *DomainDeleteOne {
+	return c.DeleteOneID(d.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DomainClient) DeleteOneID(id string) *DomainDeleteOne {
+	builder := c.Delete().Where(domain.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DomainDeleteOne{builder}
+}
+
+// Query returns a query builder for Domain.
+func (c *DomainClient) Query() *DomainQuery {
+	return &DomainQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDomain},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Domain entity by its id.
+func (c *DomainClient) Get(ctx context.Context, id string) (*Domain, error) {
+	return c.Query().Where(domain.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DomainClient) GetX(ctx context.Context, id string) *Domain {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryIngresses queries the ingresses edge of a Domain.
+func (c *DomainClient) QueryIngresses(d *Domain) *IngressQuery {
+	query := (&IngressClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := d.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(domain.Table, domain.FieldID, id),
+			sqlgraph.To(ingress.Table, ingress.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, domain.IngressesTable, domain.IngressesColumn),
+		)
+		fromV = sqlgraph.Neighbors(d.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DomainClient) Hooks() []Hook {
+	return c.hooks.Domain
+}
+
+// Interceptors returns the client interceptors.
+func (c *DomainClient) Interceptors() []Interceptor {
+	return c.inters.Domain
+}
+
+func (c *DomainClient) mutate(ctx context.Context, m *DomainMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DomainCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DomainUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DomainUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DomainDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Domain mutation op: %q", m.Op())
+	}
+}
+
+// IngressClient is a client for the Ingress schema.
+type IngressClient struct {
+	config
+}
+
+// NewIngressClient returns a client for the Ingress from the given config.
+func NewIngressClient(c config) *IngressClient {
+	return &IngressClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ingress.Hooks(f(g(h())))`.
+func (c *IngressClient) Use(hooks ...Hook) {
+	c.hooks.Ingress = append(c.hooks.Ingress, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ingress.Intercept(f(g(h())))`.
+func (c *IngressClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Ingress = append(c.inters.Ingress, interceptors...)
+}
+
+// Create returns a builder for creating a Ingress entity.
+func (c *IngressClient) Create() *IngressCreate {
+	mutation := newIngressMutation(c.config, OpCreate)
+	return &IngressCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Ingress entities.
+func (c *IngressClient) CreateBulk(builders ...*IngressCreate) *IngressCreateBulk {
+	return &IngressCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IngressClient) MapCreateBulk(slice any, setFunc func(*IngressCreate, int)) *IngressCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IngressCreateBulk{err: fmt.Errorf("calling to IngressClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IngressCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IngressCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Ingress.
+func (c *IngressClient) Update() *IngressUpdate {
+	mutation := newIngressMutation(c.config, OpUpdate)
+	return &IngressUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IngressClient) UpdateOne(i *Ingress) *IngressUpdateOne {
+	mutation := newIngressMutation(c.config, OpUpdateOne, withIngress(i))
+	return &IngressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IngressClient) UpdateOneID(id string) *IngressUpdateOne {
+	mutation := newIngressMutation(c.config, OpUpdateOne, withIngressID(id))
+	return &IngressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Ingress.
+func (c *IngressClient) Delete() *IngressDelete {
+	mutation := newIngressMutation(c.config, OpDelete)
+	return &IngressDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IngressClient) DeleteOne(i *Ingress) *IngressDeleteOne {
+	return c.DeleteOneID(i.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IngressClient) DeleteOneID(id string) *IngressDeleteOne {
+	builder := c.Delete().Where(ingress.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IngressDeleteOne{builder}
+}
+
+// Query returns a query builder for Ingress.
+func (c *IngressClient) Query() *IngressQuery {
+	return &IngressQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIngress},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Ingress entity by its id.
+func (c *IngressClient) Get(ctx context.Context, id string) (*Ingress, error) {
+	return c.Query().Where(ingress.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IngressClient) GetX(ctx context.Context, id string) *Ingress {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryDomain queries the domain edge of a Ingress.
+func (c *IngressClient) QueryDomain(i *Ingress) *DomainQuery {
+	query := (&DomainClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := i.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ingress.Table, ingress.FieldID, id),
+			sqlgraph.To(domain.Table, domain.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ingress.DomainTable, ingress.DomainColumn),
+		)
+		fromV = sqlgraph.Neighbors(i.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryService queries the service edge of a Ingress.
+func (c *IngressClient) QueryService(i *Ingress) *ServiceQuery {
+	query := (&ServiceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := i.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ingress.Table, ingress.FieldID, id),
+			sqlgraph.To(service.Table, service.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ingress.ServiceTable, ingress.ServiceColumn),
+		)
+		fromV = sqlgraph.Neighbors(i.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IngressClient) Hooks() []Hook {
+	return c.hooks.Ingress
+}
+
+// Interceptors returns the client interceptors.
+func (c *IngressClient) Interceptors() []Interceptor {
+	return c.inters.Ingress
+}
+
+func (c *IngressClient) mutate(ctx context.Context, m *IngressMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IngressCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IngressUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IngressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IngressDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Ingress mutation op: %q", m.Op())
+	}
+}
+
 // ServiceClient is a client for the Service schema.
 type ServiceClient struct {
 	config
@@ -509,6 +841,22 @@ func (c *ServiceClient) QueryApplication(s *Service) *ApplicationQuery {
 			sqlgraph.From(service.Table, service.FieldID, id),
 			sqlgraph.To(application.Table, application.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, service.ApplicationTable, service.ApplicationColumn),
+		)
+		fromV = sqlgraph.Neighbors(s.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryIngresses queries the ingresses edge of a Service.
+func (c *ServiceClient) QueryIngresses(s *Service) *IngressQuery {
+	query := (&IngressClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := s.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(service.Table, service.FieldID, id),
+			sqlgraph.To(ingress.Table, ingress.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, service.IngressesTable, service.IngressesColumn),
 		)
 		fromV = sqlgraph.Neighbors(s.driver.Dialect(), step)
 		return fromV, nil
@@ -826,9 +1174,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Application, Service, Template, User []ent.Hook
+		Application, Domain, Ingress, Service, Template, User []ent.Hook
 	}
 	inters struct {
-		Application, Service, Template, User []ent.Interceptor
+		Application, Domain, Ingress, Service, Template, User []ent.Interceptor
 	}
 )
