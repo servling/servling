@@ -18,6 +18,7 @@ import (
 	"github.com/servling/servling/pkg/deploy"
 	"github.com/servling/servling/pkg/domain/application"
 	"github.com/servling/servling/pkg/domain/auth"
+	"github.com/servling/servling/pkg/domain/domain"
 	"github.com/servling/servling/pkg/http/controller"
 )
 
@@ -125,6 +126,10 @@ func (s *HttpServer) Run() error {
 	}()
 	applicationController := controller.NewApplicationController(applicationService, authService)
 	applicationController.Routes(server)
+
+	domainService := domain.NewDomainService(s.client)
+	domainController := controller.NewDomainController(domainService, authService)
+	domainController.Routes(server)
 
 	return server.Run()
 }

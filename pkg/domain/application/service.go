@@ -40,12 +40,12 @@ func (s *ApplicationService) GetPubSub() *gochannel.GoChannel {
 	return s.pubSub
 }
 
-func (s *ApplicationService) GetAll(ctx context.Context) ([]model.Application, error) {
+func (s *ApplicationService) GetAll(ctx context.Context) ([]*model.Application, error) {
 	apps, err := s.repository.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return slice.FromPtr(slice.Map(apps, model.ApplicationFromEnt)), nil
+	return slice.Map(apps, model.ApplicationFromEnt), nil
 }
 
 func (s *ApplicationService) SubscribeToServiceEvents() error {

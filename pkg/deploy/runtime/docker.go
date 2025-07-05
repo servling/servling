@@ -363,9 +363,6 @@ func generateTraefikLabels(service *model.Service) map[string]string {
 	ingressesByPort := make(map[uint16][]*model.Ingress)
 
 	for _, ingress := range service.Ingresses {
-		if ingress.Service == nil || ingress.Domain == nil {
-			continue
-		}
 		ingressesByPort[ingress.TargetPort] = append(ingressesByPort[ingress.TargetPort], ingress)
 	}
 
@@ -385,7 +382,7 @@ func generateTraefikLabels(service *model.Service) map[string]string {
 
 		var hostRules []string
 		for _, ingress := range group {
-			hostRules = append(hostRules, fmt.Sprintf("Host(`%s`)", ingress.Domain.Name))
+			hostRules = append(hostRules, fmt.Sprintf("Host(`%s`)", ingress.Name))
 		}
 		rule := strings.Join(hostRules, " || ")
 		labels[fmt.Sprintf("%s.rule", routerKey)] = rule

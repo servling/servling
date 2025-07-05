@@ -50,37 +50,37 @@ const (
 
 // ServiceStatusInfo holds the status information of a container.
 type ServiceStatusInfo struct {
-	Status ServiceStatus `json:"status" validate:"required" enum:"running,stopped,starting,stopping,error"`
+	Status ServiceStatus `json:"status"`
 	Error  *string       `json:"error,omitempty"`
 }
 
 // ServiceStatusInfoUpdate is used for broadcasting container status updates.
 type ServiceStatusInfoUpdate struct {
 	ServiceStatusInfo
-	ID string `json:"id" validate:"required"`
+	ID string `json:"id"`
 }
 
 // ApplicationStatusInfoUpdate is used for broadcasting container status updates.
 type ApplicationStatusInfoUpdate struct {
 	ServiceStatusInfo
-	ID string `json:"id" validate:"required"`
+	ID string `json:"id"`
 }
 
 // Service represents the structure of a service that is returned from the API.
 type Service struct {
-	ID          string            `json:"id" validate:"required"`
-	Name        string            `json:"name" validate:"required"`
-	ServiceName string            `json:"serviceName" validate:"required"`
-	Image       string            `json:"image" validate:"required"`
-	Environment map[string]string `json:"environment" validate:"required"`
-	Ports       map[string]string `json:"ports" validate:"required"`
-	Labels      map[string]string `json:"labels" validate:"required"`
-	Status      ServiceStatus     `json:"status" validate:"required" enum:"running,stopped,starting,stopping,error"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	ServiceName string            `json:"serviceName"`
+	Image       string            `json:"image"`
+	Environment map[string]string `json:"environment"`
+	Ports       map[string]string `json:"ports"`
+	Labels      map[string]string `json:"labels"`
+	Status      ServiceStatus     `json:"status"`
 	Error       *string           `json:"error"`
-	Ingresses   []*Ingress        `json:"ingresses" validate:"required"`
-	Application *Application      `json:"-" validate:"required"`
-	CreatedAt   time.Time         `json:"createdAt" validate:"required"`
-	UpdatedAt   time.Time         `json:"updatedAt" validate:"required"`
+	Ingresses   []*Ingress        `json:"ingresses"`
+	Application *Application      `json:"-"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
 }
 
 func ApplicationFromEnt(app *ent.Application) *Application {

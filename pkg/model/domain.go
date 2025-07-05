@@ -13,6 +13,14 @@ type Domain struct {
 	Ingresses []*Ingress `json:"ingresses,omitempty"`
 }
 
+type CreateDomainInput struct {
+	Name             string  `json:"name"`
+	Certificate      *string `json:"certificate,omitempty"`
+	Key              *string `json:"key,omitempty"`
+	CloudflareEmail  *string `json:"cloudflare_email,omitempty"`
+	CloudflareAPIKey *string `json:"cloudflare_api_key,omitempty"`
+}
+
 func DomainFromEnt(d *ent.Domain) *Domain {
 	if d == nil {
 		return nil

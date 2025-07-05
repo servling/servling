@@ -4,7 +4,7 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 	"github.com/servling/servling/pkg/domain/auth"
-	"github.com/servling/servling/pkg/model"
+	"github.com/servling/servling/pkg/http/dto"
 )
 
 type AuthController struct {
@@ -31,12 +31,16 @@ type RegisterRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*model.RegisterResult, error) {
+func (ac *AuthController) Register(c fuego.Context[RegisterRequest, any]) (*dto.RegisterResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
 	}
-	return ac.authService.Register(c, body.Username, body.Password)
+	result, err := ac.authService.Register(c, body.Username, body.Password)
+	if err != nil {
+		return nil, err
+	}
+	return dto.RegisterResultFromModel(result), nil
 }
 
 type LoginRequest struct {
@@ -44,32 +48,40 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*model.LoginResult, error) {
+func (ac *AuthController) Login(c fuego.Context[LoginRequest, any]) (*dto.LoginResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
 	}
-	return ac.authService.Login(c, body.Username, body.Password)
+	result, err := ac.authService.Login(c, body.Username, body.Password)
+	if err != nil {
+		return nil, err
+	}
+	return dto.LoginResultFromModel(result), nil
 }
 
 type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
-func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*model.RefreshResult, error) {
+func (ac *AuthController) Refresh(c fuego.Context[RefreshRequest, any]) (*dto.RefreshResult, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, err
 	}
-	return ac.authService.Refresh(c, body.RefreshToken)
+	result, err := ac.authService.Refresh(c, body.RefreshToken)
+	if err != nil {
+		return nil, err
+	}
+	return dto.RefreshResultFromModel(result), nil
 }
 
-func (ac *AuthController) Invalidate(c fuego.ContextNoBody) (*model.InvalidateResult, error) {
+func (ac *AuthController) Invalidate(c fuego.ContextNoBody) (*dto.InvalidateResult, error) {
 	err := ac.authService.Invalidate(c)
 	if err != nil {
 		return nil, err
 	}
-	return &model.InvalidateResult{
+	return &dto.InvalidateResult{
 		Ok: true,
 	}, nil
 }

@@ -6,26 +6,26 @@ import (
 
 // LoginResult represents the data returned upon a successful login.
 type LoginResult struct {
-	User                  User      `json:"user" validate:"required"`
-	AccessToken           string    `json:"accessToken" validate:"required"`
-	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt" validate:"required"`
-	RefreshToken          string    `json:"refreshToken" validate:"required"`
-	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt" validate:"required"`
+	User                  User      `json:"user"`
+	AccessToken           string    `json:"accessToken"`
+	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
+	RefreshToken          string    `json:"refreshToken"`
+	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
 }
 
 // RegisterResult represents the data returned upon a successful registration.
 type RegisterResult struct {
-	User                  User      `json:"user" validate:"required"`
-	AccessToken           string    `json:"accessToken" validate:"required"`
-	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt" validate:"required"`
-	RefreshToken          string    `json:"refreshToken" validate:"required"`
-	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt" validate:"required"`
+	User                  User      `json:"user"`
+	AccessToken           string    `json:"accessToken"`
+	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
+	RefreshToken          string    `json:"refreshToken"`
+	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
 }
 
 // RefreshResult represents the data returned upon a successful token refresh.
 type RefreshResult struct {
-	AccessToken          string    `json:"accessToken" validate:"required"`
-	AccessTokenExpiresAt time.Time `json:"accessTokenExpiresAt" validate:"required"`
+	AccessToken          string    `json:"accessToken"`
+	AccessTokenExpiresAt time.Time `json:"accessTokenExpiresAt"`
 }
 
 // InvalidateResult represents the response for a successful token invalidation.

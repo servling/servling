@@ -18,6 +18,7 @@ const darkModeIcon = computed(() => color.value === 'dark' ? 'ph:moon' : 'ph:sun
     <UiSidebarItem title="Dashboard" icon="ph:house" href="/" />
     <UiSidebarItem title="Applications" icon="ph:squares-four" href="/apps" />
     <UiSidebarItem title="App Store" icon="ph:storefront" href="/apps/store" />
+    <UiSidebarItem title="Domains" icon="ph:globe-hemisphere-west" href="/domains" />
     <template #bottom>
       <ClientOnly>
         <UiSidebarItem :title="darkModeTitle" :icon="darkModeIcon" :action="toggleDark" elevated />
